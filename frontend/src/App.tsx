@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
+import type { HealthResponse } from "./types/api";
+
 
 export default function App() {
-  const [status, setStatus] = useState("loading...");
+  const [status, setStatus] = useState<string>("loading...");
 
   useEffect(() => {
     fetch("http://localhost:8000/health")
-      .then((r) => r.json())
-      .then((d) => setStatus(d.status))
+      .then((response) => response.json() as Promise<HealthResponse>)
+      .then((data) => setStatus(data.status))
       .catch(() => setStatus("error"));
   }, []);
 
