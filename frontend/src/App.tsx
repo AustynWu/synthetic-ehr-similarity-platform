@@ -83,7 +83,7 @@ export default function App() {
     const steps = new Set<PageKey>();
     if (uploadedDatasets.realDataset || uploadedDatasets.syntheticDataset) steps.add("upload");
     if (validationSummary) steps.add("validation");
-    if (evaluationConfig) steps.add("setup");
+    if (evaluationResult) steps.add("setup");
     if (evaluationResult) steps.add("results");
     if (savedComparisons.length > 0) steps.add("saved");
     return steps;
