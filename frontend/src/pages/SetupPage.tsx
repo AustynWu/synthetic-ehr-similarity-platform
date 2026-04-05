@@ -1,25 +1,21 @@
-// ========================================================
-// SetupPage.tsx — 第三步：評估設定頁面
-// ========================================================
-// 讓使用者選擇：
-//   1. 要用哪些統計指標（KS test、Chi-square 等）
-//   2. 要比較哪些欄位（race、gender、readmitted 等）
-// 選好後按「Run Evaluation」就跑評估並跳到結果頁。
+// SetupPage.tsx — Step 3: evaluation setup
 //
-// React 概念 — useState + 更新函式：
+// Lets the user choose:
+//   1. Which statistical metrics to apply (KS test, Chi-square, etc.)
+//   2. Which columns to include in the comparison
+// Clicking "Run Evaluation" runs the stats and navigates to the Results page.
+//
+// Functional update pattern:
 //   setConfig((current) => { ...current, selectedMetrics: [...] })
-//   這種「函式型更新」寫法可以確保拿到最新的 state 值，
-//   避免「閉包陷阱」（在非同步情境下 state 讀到舊值的問題）
+//   Using a function ensures the latest state value is read, avoiding stale-closure bugs.
 //
-// React 概念 — useMemo：
-//   representativeColumns 從 validationSummary 計算出來
-//   用 useMemo 快取，只有 validationSummary 改變時才重新計算
+// useMemo:
+//   representativeColumns is computed from validationSummary.
+//   Memoised so it only recalculates when validationSummary changes.
 //
-// TypeScript 概念 — 函式型別：
-//   onRunEvaluation: (config: EvaluationConfig) => void | Promise<void>
-//   代表這個函式接收 EvaluationConfig，不回傳值（void）
-//   | Promise<void> 讓它可以是非同步函式
-// ========================================================
+// onRunEvaluation type:
+//   (config: EvaluationConfig) => void | Promise<void>
+//   Accepts both synchronous and async handlers.
 
 import { useMemo, useState } from "react";
 import PageSection from "../components/ui/PageSection";
@@ -32,8 +28,8 @@ import { availableMetrics } from "../services/evaluationService";
 import EmptyState from "../components/ui/EmptyState";
 import StatusBadge from "../components/ui/StatusBadge";
 
-// 欄位分組：4 個大組讓使用者快速定位，encounter_id / patient_nbr 不列出（ID 欄不應進入評估）
-// 這是針對 diabetic_data.csv 的靜態分組，之後接後端時由 API 提供
+// Column groups for diabetic_data.csv — encounter_id and patient_nbr are omitted (ID columns should not be evaluated)
+// Static for prototype; backend API will provide groupings in production.
 const variableGroups = [
   {
     label: "Patient",
@@ -56,14 +52,13 @@ const variableGroups = [
 // Max variables the backend can handle in one evaluation run
 const MAX_VARIABLES = 30;
 
-// 預設建議使用者選的欄位（代表性欄位，不需要全選）
+// Suggested default columns (representative subset — no need to select all)
 const suggestedVariables = [
   "race", "gender", "age", "time_in_hospital",
   "num_lab_procedures", "num_medications", "number_diagnoses",
   "A1Cresult", "insulin", "readmitted",
 ];
 
-// SetupPage 除了 SharedPageProps，還需要 onRunEvaluation 函式
 export default function SetupPage({
   validationSummary,
   evaluationConfig,
@@ -71,7 +66,7 @@ export default function SetupPage({
   onRunEvaluation,
 }: SharedPageProps & { onRunEvaluation: (config: EvaluationConfig) => void | Promise<void> }) {
 
-  // 防呆：如果還沒完成驗證就跳到這頁
+  // Guard: validation must be completed first
   if (!validationSummary) {
     return (
       <EmptyState
@@ -83,34 +78,33 @@ export default function SetupPage({
     );
   }
 
-  // 初始化「選好的欄位」：
-  // 如果之前已經設定過（evaluationConfig.selectedColumns 有值），就沿用
-  // 否則使用建議欄位清單
+  // Initialise selected columns:
+  // If a previous selection exists, restore it; otherwise use the suggested defaults.
   const initialSelectedColumns =
     evaluationConfig.selectedColumns.length > 0
       ? evaluationConfig.selectedColumns
       : suggestedVariables;
 
-  // 本頁的設定狀態（複製一份 evaluationConfig 當初始值）
+  // Local config state (copy of evaluationConfig with initialised columns)
   const [config, setConfig] = useState<EvaluationConfig>({
     ...evaluationConfig,
     selectedColumns: initialSelectedColumns,
   });
 
-  // 切換一個指標的勾選狀態（已勾選就取消，未勾選就加入）
+  // Toggle one metric on/off
   const toggleMetric = (metric: EvaluationMetric) => {
     setConfig((current) => {
       const exists = current.selectedMetrics.includes(metric);
       return {
-        ...current, // 保留其他設定不變
+        ...current,
         selectedMetrics: exists
-          ? current.selectedMetrics.filter((item) => item !== metric) // 移除
-          : [...current.selectedMetrics, metric],                      // 加入
+          ? current.selectedMetrics.filter((item) => item !== metric)
+          : [...current.selectedMetrics, metric],
       };
     });
   };
 
-  // 切換一個欄位的勾選狀態
+  // Toggle one column on/off
   const toggleVariable = (columnName: string) => {
     setConfig((current) => {
       const exists = current.selectedColumns.includes(columnName);
@@ -123,7 +117,7 @@ export default function SetupPage({
     });
   };
 
-  // 把一組欄位全部加入選擇（已選的不重複加入）
+  // Select all columns in a group (skips already-selected ones)
   const selectAllInGroup = (columns: string[]) => {
     setConfig((current) => ({
       ...current,
@@ -131,7 +125,7 @@ export default function SetupPage({
     }));
   };
 
-  // 把一組欄位全部從選擇中移除
+  // Remove all columns in a group from the selection
   const clearGroup = (columns: string[]) => {
     setConfig((current) => ({
       ...current,
@@ -139,11 +133,10 @@ export default function SetupPage({
     }));
   };
 
-  // 搜尋框的輸入值（即時過濾欄位名稱）
+  // Search box value for filtering column chips
   const [searchQuery, setSearchQuery] = useState("");
 
-  // 從後端回傳的完整欄位清單取得欄位名稱，讓使用者可以從全部欄位中選擇
-  // useMemo 避免每次渲染都重新計算（validationSummary 很少改變）
+  // Full column list from the validation result — used to filter out columns the backend doesn't know about
   const allColumns = useMemo(
     () => validationSummary.availableColumns.map((col) => col.columnName),
     [validationSummary]
@@ -151,7 +144,7 @@ export default function SetupPage({
 
   return (
     <div className="page-stack">
-      {/* Row 1：欄位選擇（全寬，在最上面讓使用者先決定要比較什麼） */}
+      {/* Row 1: variable selection (full width, shown first so users pick columns before metrics) */}
       <PageSection
         title="Evaluation setup"
         description="Choose the variables and metrics to preview in the similarity prototype."
@@ -160,7 +153,7 @@ export default function SetupPage({
           title="Variable selection"
           subtitle="Select the columns to include in the evaluation. Columns are grouped by clinical category."
         >
-          {/* 搜尋框 + 已選計數 */}
+          {/* Search box + selection count */}
           <div className="variable-selection-header">
             <input
               type="text"
@@ -176,7 +169,7 @@ export default function SetupPage({
           </div>
 
           {variableGroups.map((group) => {
-            // 先過濾掉後端沒有的欄位，再根據搜尋詞過濾
+            // Filter to columns the backend knows about, then apply the search query
             const cols = group.variables.filter(
               (v) => allColumns.includes(v) &&
                      v.toLowerCase().includes(searchQuery.toLowerCase())
@@ -184,7 +177,7 @@ export default function SetupPage({
             if (cols.length === 0) return null;
             return (
               <div key={group.label} className="variable-group-section">
-                {/* 分組標題列：左邊組名，右邊 Select all / Clear 按鈕 */}
+                {/* Group header: name on left, Select all / Clear on right */}
                 <div className="variable-group-header">
                   <div className="variable-group-label">{group.label}</div>
                   <div className="variable-group-actions">
@@ -228,9 +221,9 @@ export default function SetupPage({
         </SectionCard>
       </PageSection>
 
-      {/* Row 2：指標選擇 + 執行摘要並排 */}
+      {/* Row 2: metric selection + run summary side by side */}
       <div className="two-column-grid">
-        {/* 左：指標選擇（checkbox 清單） */}
+        {/* Left: metric checkboxes */}
         <SectionCard
           title="Metric selection"
           subtitle="Select the statistical methods to apply. Each metric is labelled by the column type it applies to."
@@ -267,7 +260,7 @@ export default function SetupPage({
           </div>
         </SectionCard>
 
-        {/* 右：執行摘要（讓使用者確認目前選了什麼） */}
+        {/* Right: live run summary so users can confirm their selection */}
         <SectionCard
           title="Run summary"
           subtitle="Live preview of your current selection."
@@ -299,12 +292,12 @@ export default function SetupPage({
         </SectionCard>
       </div>
 
-      {/* 頁面底部按鈕 */}
+      {/* Page footer actions */}
       <div className="page-actions">
         <PrimaryButton variant="ghost" onClick={() => goToPage("validation")}>
           Back to Validation
         </PrimaryButton>
-        {/* 如果沒選任何指標或欄位，按鈕會被禁用 */}
+        {/* Button is disabled if no metrics or columns are selected, or the column limit is exceeded */}
         <PrimaryButton
           onClick={() => onRunEvaluation(config)}
           disabled={config.selectedMetrics.length === 0 || config.selectedColumns.length === 0 || config.selectedColumns.length > MAX_VARIABLES}

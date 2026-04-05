@@ -371,7 +371,7 @@ p {
   margin-top: 4px;
 }
 
-/* 指標名稱和型態 badge 並排顯示 */
+/* metric name and type badge displayed side by side */
 .metric-label-row {
   display: flex;
   align-items: center;
@@ -625,7 +625,7 @@ p {
 }
 
 
-/* 搜尋框 + 計數的橫向列 */
+/* search input + selection count row */
 .variable-selection-header {
   display: flex;
   align-items: center;
@@ -659,7 +659,7 @@ p {
   margin-bottom: 20px;
 }
 
-/* 分組標題列：組名在左，Select all / Clear 在右 */
+/* group header: group name on left, Select all / Clear on right */
 .variable-group-header {
   display: flex;
   align-items: center;
@@ -806,9 +806,8 @@ p {
 }
 
 /* ── Dataset Summary Stat List ─────────────────────────────────
-   用在 ValidationPage 的左右兩張資料集卡片裡
-   把多個 stat row 垂直疊在一起
-   flex-direction: column → 子元素由上到下排列
+   Used in the two dataset cards on ValidationPage.
+   Stacks multiple stat rows vertically.
    ──────────────────────────────────────────────────────────── */
 .dataset-stat-list {
   display: flex;
@@ -816,12 +815,9 @@ p {
 }
 
 /* ── Dataset Stat Row ──────────────────────────────────────────
-   每一行統計數字的排版
-   左邊是 label（例如 "Rows"），右邊是數字（例如 "101,766"）
-
-   justify-content: space-between → 讓 label 和數字各自靠向左右兩端
-   align-items: center           → 讓文字垂直置中對齊
-   border-bottom                 → 每行之間加一條淺灰分隔線，增加可讀性
+   One row inside the stat list: label on the left, value on the right.
+   justify-content: space-between — pushes label and value to opposite ends
+   border-bottom — separator line between rows for readability
    ──────────────────────────────────────────────────────────── */
 .dataset-stat-row {
   display: flex;
@@ -829,23 +825,23 @@ p {
   align-items: center;
   padding: 12px 0;
   border-bottom: 1px solid var(--border);
-  color: var(--text-soft); /* label 文字用灰色，數字另外用深色蓋掉 */
+  color: var(--text-soft); /* label is grey; value (<strong>) overrides with dark colour */
 }
 
-/* 最後一個 row 不要分隔線，避免卡片底部出現多餘的線 */
+/* Remove the separator on the last row to avoid an extra line at the card bottom */
 .dataset-stat-row:last-child {
   border-bottom: none;
 }
 
-/* 右邊的數字：深色 + 正常字重，和灰色 label 形成視覺對比 */
+/* Right-side value: dark colour and medium weight, contrasts with the grey label */
 .dataset-stat-row strong {
   color: var(--text);
   font-weight: 600;
-  text-align: right; /* 確保數字靠右對齊，就算加了小字也整齊 */
+  text-align: right; /* keeps value right-aligned even when sub-text is added */
 }
 
-/* ── Row Count Diff 提示條 ───────────────────────────────────
-   顯示兩個資料集的行數差異，顏色代表嚴重程度 */
+/* ── Row Count Diff Banner ───────────────────────────────────
+   Shows the row count difference between the two datasets; colour indicates severity. */
 .row-count-diff {
   padding: 10px 14px;
   border-radius: 6px;
@@ -857,14 +853,14 @@ p {
 .row-count-diff--danger  { background: var(--danger-soft);  color: var(--danger);  }
 
 /* ── Stat Sub ────────────────────────────────────────────────
-   數字旁邊的小字補充說明，例如「(7.3% of cells)」
-   設計目的：不搶主數字的視覺重量，只是給 user 參考比例感
+   Small supplementary text beside a value, e.g. "(7.3% of cells)".
+   Intentionally lighter than the main value to avoid competing visually.
    ──────────────────────────────────────────────────────────── */
 .stat-sub {
-  font-size: 0.78rem; /* 比主數字小一點 */
-  font-weight: 400;   /* 回到正常字重，和 strong 的 600 形成對比 */
-  color: var(--text-soft); /* 灰色，不搶眼 */
-  margin-left: 6px;   /* 和數字之間留一點距離 */
+  font-size: 0.78rem; /* slightly smaller than the main value */
+  font-weight: 400;   /* normal weight — contrasts with strong's 600 */
+  color: var(--text-soft); /* grey — unobtrusive */
+  margin-left: 6px;
 }
 
 @media (max-width: 720px) {

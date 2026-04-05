@@ -1,28 +1,16 @@
-// ========================================================
-// ComparisonChart.tsx — 真實 vs 合成資料比較圖
-// ========================================================
-// 用純 CSS 畫出「並排直條圖」，讓使用者直觀看出：
-//   藍色  = 真實資料的比例
-//   淺藍色 = 合成資料的比例
+// ComparisonChart.tsx — real vs synthetic side-by-side bar chart
 //
-// 每個類別（例如 "NO", ">30", "<30"）旁邊都有兩根條：
-//   ┌──── ────┐
-//   │▓▓   ░░  │  ← 藍色是真實，淺藍是合成
-//   │          │
-//   │  "NO"    │
-//   │54% vs 53%│
-//   └──────────┘
+// Renders paired vertical bars using pure CSS (no chart library needed).
+//   Dark blue  = real data proportion
+//   Light blue = synthetic data proportion
 //
-// 高度計算：
-//   realHeight = (realValue / max) * 100%
-//   把每個值換算成「佔最大值的百分比」
-//   Math.max(10, ...) 確保最矮的 bar 至少 10%（避免完全看不到）
+// Each category (e.g. "NO", ">30", "<30") gets two bars:
+//   realHeight      = (realValue / max) * 100%
+//   syntheticHeight = (syntheticValue / max) * 100%
 //
-// max 是所有資料點裡的最大值（用來做為 100% 的基準）
-//   Math.max(...points.flatMap(p => [p.realValue, p.syntheticValue]), 1)
-//   flatMap 把 [realValue, syntheticValue] 打平成一維陣列
-//   最後的 1 確保 max 不會是 0（避免除以零）
-// ========================================================
+// max = largest value across all points — acts as the 100% baseline.
+//   Math.max(10, ...) ensures bars are always at least 10% tall (prevents invisible bars).
+//   The trailing 1 in Math.max(..., 1) prevents division-by-zero on empty data.
 
 import type { ChartPoint } from "../../types/contracts";
 
@@ -35,10 +23,10 @@ export default function ComparisonChart({
   subtitle?: string;
   points: ChartPoint[];
 }) {
-  // 找出所有值裡的最大值（用來當作 100% 的基準，讓最高的 bar 剛好到頂）
+  // Largest value across all data points — used as the 100% height baseline
   const max = Math.max(
     ...points.flatMap((point) => [point.realValue, point.syntheticValue]),
-    1 // 至少是 1，避免空資料時除以零
+    1 // at least 1 to avoid divide-by-zero on empty data
   );
 
   return (
@@ -53,7 +41,7 @@ export default function ComparisonChart({
         </div>
       )}
 
-      {/* 圖例說明（藍色=真實，淺藍=合成） */}
+      {/* Legend */}
       <div className="comparison-legend">
         <span className="legend-item">
           <i className="legend-dot real" /> Real data
@@ -63,25 +51,24 @@ export default function ComparisonChart({
         </span>
       </div>
 
-      {/* 圖表繪圖區 */}
+      {/* Bar chart plot area */}
       <div className="comparison-plot">
         {points.map((point) => {
-          // 把值換算成高度百分比（相對於最大值）
-          // 最矮 10%，避免 bar 太矮看不到
+          // Convert values to height percentages relative to max
           const realHeight      = `${Math.max(10, (point.realValue      / max) * 100)}%`;
           const syntheticHeight = `${Math.max(10, (point.syntheticValue / max) * 100)}%`;
 
           return (
             <div key={point.label} className="comparison-group">
-              {/* 兩根並排的直條 */}
+              {/* Two bars side by side */}
               <div className="comparison-bars">
-                {/* 真實資料的藍色 bar（高度由 realHeight 控制） */}
+                {/* Real data bar (dark blue) */}
                 <div
                   className="comparison-bar real"
                   style={{ height: realHeight }}
-                  title={`Real: ${point.realValue}`} // 滑鼠移上去顯示確切數值
+                  title={`Real: ${point.realValue}`}
                 />
-                {/* 合成資料的淺藍 bar */}
+                {/* Synthetic data bar (light blue) */}
                 <div
                   className="comparison-bar synthetic"
                   style={{ height: syntheticHeight }}
@@ -89,13 +76,12 @@ export default function ComparisonChart({
                 />
               </div>
 
-              {/* 類別標籤（例如 "NO"、">30"） */}
+              {/* Category label (e.g. "NO", ">30") */}
               <strong>{point.label}</strong>
 
-              {/* 數值標籤（例如 "54% vs 53%"） */}
+              {/* Value label (e.g. "54% vs 53%") — raw values are 0–1 decimals, multiply by 100 */}
               <span>
                 {Math.round(point.realValue * 100)}% vs {Math.round(point.syntheticValue * 100)}%
-                {/* *100 因為原始值是 0~1 的小數（0.54 → 54%） */}
               </span>
             </div>
           );

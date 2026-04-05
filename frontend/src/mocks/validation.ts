@@ -1,47 +1,44 @@
-// ========================================================
-// mocks/validation.ts — 假的驗證結果資料
-// ========================================================
-// 模擬「後端分析完兩個資料集後回傳的驗證摘要」。
-// 數字均從真實的 diabetic_data.csv 和 V1_syn.csv 計算得出。
+// mocks/validation.ts — pre-computed validation summary
 //
-// 缺失值定義：空字串、"?"、"None" 字串都算缺失
-// （diabetic_data.csv 用 "None" 字串表示沒有資料）
-// ========================================================
+// Simulates the schema comparison result the backend would return after analysing both files.
+// Numbers are derived from the real diabetic_data.csv and V1_syn.csv.
+//
+// Missing value definition: empty string, "?", or the string "None" all count as missing.
 
 import type { ValidationSummary } from "../types/contracts";
 
 export const mockValidationSummary: ValidationSummary = {
-  // 真實資料集的基本統計
+  // Real dataset statistics
   realDataset: {
     fileId: "real-001",
     fileName: "diabetic_data.csv",
     rowCount: 101766,
     columnCount: 50,
-    missingValueCount: 374017, // 計入 "None" 字串後的真實缺失值總數
+    missingValueCount: 374017, // includes "None" string values
     duplicateRowCount: 0,
     missingColumnCount: 8, // weight/medical_specialty/payer_code/max_glu_serum/A1Cresult/race/diag_2/diag_3
   },
-  // 合成資料集的基本統計
+  // Synthetic dataset statistics
   syntheticDataset: {
     fileId: "syn-001",
     fileName: "V1_syn.csv",
     rowCount: 101766,
     columnCount: 50,
-    missingValueCount: 372705, // 與真實資料相差僅 0.4%，AI 學到了缺失模式
+    missingValueCount: 372705, // only 0.4% difference from real — missingness pattern was learned
     duplicateRowCount: 0,
-    missingColumnCount: 8, // 同樣 8 個欄位有缺失，模式被完整複製
+    missingColumnCount: 8, // same 8 columns have missing values — pattern fully replicated
   },
-  // 49 欄名稱對齊，1 欄 type mismatch（number_outpatient）
+  // 49 column names aligned, 1 type mismatch (number_outpatient)
   matchedColumnCount: 49,
   unmatchedColumnCount: 1,
 
   // Schema comparison rows — sorted by severity then missingness.
   // Backend sorts: type_mismatch first, then high-missingness descending, then clean columns.
   schemaComparison: [
-    // Type mismatch（最嚴重，排最前面）
+    // Type mismatch (most severe — shown first)
     { id: "number_outpatient", columnName: "number_outpatient", realType: "numerical", syntheticType: "categorical", realMissingRate: 0, syntheticMissingRate: 0, status: "type_mismatch" },
 
-    // 高缺失率欄位（由高到低排序）
+    // High-missingness columns (sorted descending)
     { id: "weight",            columnName: "weight",            realType: "categorical", syntheticType: "categorical", realMissingRate: 96.9, syntheticMissingRate: 96.9, status: "matched" },
     { id: "max_glu_serum",     columnName: "max_glu_serum",     realType: "categorical", syntheticType: "categorical", realMissingRate: 94.7, syntheticMissingRate: 94.6, status: "matched" },
     { id: "A1Cresult",         columnName: "A1Cresult",         realType: "categorical", syntheticType: "categorical", realMissingRate: 83.3, syntheticMissingRate: 82.8, status: "matched" },
@@ -51,32 +48,32 @@ export const mockValidationSummary: ValidationSummary = {
     { id: "diag_3",            columnName: "diag_3",            realType: "categorical", syntheticType: "categorical", realMissingRate: 1.4,  syntheticMissingRate: 1.5,  status: "matched" },
     { id: "diag_2",            columnName: "diag_2",            realType: "categorical", syntheticType: "categorical", realMissingRate: 0.4,  syntheticMissingRate: 0.4,  status: "matched" },
 
-    // 代表性的乾淨欄位（結果變數、用藥、數值型、人口統計各一筆）
+    // Representative clean columns (one from each category: outcome, medication, numerical, demographic)
     { id: "readmitted",       columnName: "readmitted",       realType: "categorical", syntheticType: "categorical", realMissingRate: 0, syntheticMissingRate: 0, status: "matched" },
     { id: "insulin",          columnName: "insulin",          realType: "categorical", syntheticType: "categorical", realMissingRate: 0, syntheticMissingRate: 0, status: "matched" },
     { id: "time_in_hospital", columnName: "time_in_hospital", realType: "numerical",   syntheticType: "numerical",   realMissingRate: 0, syntheticMissingRate: 0, status: "matched" },
     { id: "age",              columnName: "age",              realType: "categorical", syntheticType: "categorical", realMissingRate: 0, syntheticMissingRate: 0, status: "matched" },
   ],
 
-  // 全部 50 欄的清單，由後端在 profiling 階段從 CSV header 讀取後回傳
-  // Setup 頁用這份清單讓使用者自由選擇要評估哪些欄位
+  // Full 50-column list — read from CSV headers during backend profiling.
+  // Setup page uses this list to let users choose which columns to evaluate.
   availableColumns: [
-    // ID 欄位（通常不選入評估，但仍列出讓使用者決定）
+    // ID columns (usually excluded from evaluation, but listed so users can decide)
     { columnName: "encounter_id",                  dataType: "numerical"   },
     { columnName: "patient_nbr",                   dataType: "numerical"   },
-    // 人口統計
+    // Demographics
     { columnName: "race",                          dataType: "categorical" },
     { columnName: "gender",                        dataType: "categorical" },
     { columnName: "age",                           dataType: "categorical" },
     { columnName: "weight",                        dataType: "categorical" },
-    // 入院資訊
+    // Admission info
     { columnName: "admission_type_id",             dataType: "numerical"   },
     { columnName: "discharge_disposition_id",      dataType: "numerical"   },
     { columnName: "admission_source_id",           dataType: "numerical"   },
     { columnName: "time_in_hospital",              dataType: "numerical"   },
     { columnName: "payer_code",                    dataType: "categorical" },
     { columnName: "medical_specialty",             dataType: "categorical" },
-    // 使用量欄位
+    // Utilisation
     { columnName: "num_lab_procedures",            dataType: "numerical"   },
     { columnName: "num_procedures",                dataType: "numerical"   },
     { columnName: "num_medications",               dataType: "numerical"   },
@@ -84,14 +81,14 @@ export const mockValidationSummary: ValidationSummary = {
     { columnName: "number_emergency",              dataType: "numerical"   },
     { columnName: "number_inpatient",              dataType: "numerical"   },
     { columnName: "number_diagnoses",              dataType: "numerical"   },
-    // 診斷
+    // Diagnoses
     { columnName: "diag_1",                        dataType: "categorical" },
     { columnName: "diag_2",                        dataType: "categorical" },
     { columnName: "diag_3",                        dataType: "categorical" },
-    // 血糖相關
+    // Blood glucose
     { columnName: "max_glu_serum",                 dataType: "categorical" },
     { columnName: "A1Cresult",                     dataType: "categorical" },
-    // 用藥欄位
+    // Medications
     { columnName: "metformin",                     dataType: "categorical" },
     { columnName: "repaglinide",                   dataType: "categorical" },
     { columnName: "nateglinide",                   dataType: "categorical" },
@@ -115,13 +112,13 @@ export const mockValidationSummary: ValidationSummary = {
     { columnName: "glimepiride-pioglitazone",      dataType: "categorical" },
     { columnName: "metformin-rosiglitazone",       dataType: "categorical" },
     { columnName: "metformin-pioglitazone",        dataType: "categorical" },
-    // 結果欄位
+    // Outcome columns
     { columnName: "change",                        dataType: "categorical" },
     { columnName: "diabetesMed",                   dataType: "categorical" },
     { columnName: "readmitted",                    dataType: "categorical" },
   ],
 
-  // 驗證發現（後端根據規則自動產生，嚴重的排前面）
+  // Validation issues (auto-generated by backend rules, most severe first)
   issues: [
     {
       level: "warning",

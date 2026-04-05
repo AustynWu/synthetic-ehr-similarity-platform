@@ -1,44 +1,40 @@
-// ========================================================
-// SummaryCard.tsx — 統計摘要卡片
-// ========================================================
-// 顯示一個數字或文字加上說明的小卡片。
-// 常用於頁面頂部的「快速摘要」區域。
+// SummaryCard.tsx — single-stat summary card
 //
-// 外觀結構：
-//   ┌─────────────────────────┐
-//   │ label 標題        [badge]│
-//   │ value（大字）            │
-//   │ helper 補充說明          │
-//   └─────────────────────────┘
+// Shows one number or text value with a label and optional helper text.
+// Commonly used in the top summary row of a page.
 //
-// 所有 props 都有預設值或是選用的（?），所以呼叫時很彈性：
-//   <SummaryCard label="Rows" value={101766} />  ← 最簡單用法
-//   <SummaryCard label="Status" value="Good" badge="OK" tone="success" helper="..." />
-// ========================================================
+// Structure:
+//   label (small)         [badge]
+//   value (large, h3)
+//   helper (smallest, grey)
+//
+// All props except label and value are optional.
+// Simplest usage:  <SummaryCard label="Rows" value={101766} />
+// Full usage:      <SummaryCard label="Status" value="Good" badge="OK" tone="success" helper="..." />
 
 import StatusBadge from "./StatusBadge";
 import type { SummaryCardProps } from "../../types/contracts";
 
 export default function SummaryCard({
-  label,          // 卡片標題（小字）
-  value,          // 主要數值（大字）
-  helper,         // 補充說明（最小字，灰色）
-  tone = "info",  // badge 的顏色（預設藍色）
-  badge,          // 右上角的小標籤文字（可不傳）
+  label,
+  value,
+  helper,
+  tone = "info",  // default badge colour: blue
+  badge,          // optional top-right label
 }: SummaryCardProps) {
   return (
     <div className="summary-card">
-      {/* 頂部一行：左邊 label，右邊 badge */}
+      {/* Top row: label on the left, badge on the right */}
       <div className="summary-top-row">
         <p>{label}</p>
-        {/* badge 有傳才顯示（React 的條件渲染：null/undefined 不會渲染任何東西） */}
+        {/* null/undefined is not rendered by React — safe to use as a conditional */}
         {badge ? <StatusBadge tone={tone}>{badge}</StatusBadge> : null}
       </div>
 
-      {/* 主要數值（h3 大字） */}
+      {/* Main value */}
       <h3>{value}</h3>
 
-      {/* 補充說明（可不傳） */}
+      {/* Optional supplementary note */}
       {helper ? <span>{helper}</span> : null}
     </div>
   );
