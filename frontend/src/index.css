@@ -322,6 +322,12 @@ p {
   display: none;
 }
 
+.upload-error {
+  margin-top: 8px;
+  color: #ef4444;
+  font-size: 0.8rem;
+}
+
 .upload-icon {
   width: 52px;
   height: 52px;

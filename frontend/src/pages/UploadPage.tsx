@@ -35,6 +35,18 @@ export default function UploadPage({
   const [realFile, setRealFile] = useState<File | null>(null);
   const [syntheticFile, setSyntheticFile] = useState<File | null>(null);
 
+  // Error messages shown inside each upload card (empty string = no error)
+  const [realFileError, setRealFileError] = useState("");
+  const [syntheticFileError, setSyntheticFileError] = useState("");
+
+  // Returns the file if it is a CSV, otherwise returns null and an error message
+  function validateCsv(file: File): { valid: boolean; error: string } {
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      return { valid: false, error: `"${file.name}" is not a CSV file. Please select a .csv file.` };
+    }
+    return { valid: true, error: "" };
+  }
+
   // Both files must be selected before the continue button is enabled
   const canContinue = Boolean(realFile && syntheticFile);
 
@@ -55,13 +67,27 @@ export default function UploadPage({
             title="Real dataset"
             description="diabetic_data.csv as the real EHR baseline."
             file={realFile}
-            onSelectFile={(event) => setRealFile(event.target.files?.[0] ?? null)}
+            error={realFileError}
+            onSelectFile={(event) => {
+              const picked = event.target.files?.[0] ?? null;
+              if (!picked) { setRealFile(null); setRealFileError(""); return; }
+              const { valid, error } = validateCsv(picked);
+              setRealFile(valid ? picked : null);
+              setRealFileError(error);
+            }}
           />
           <UploadCard
             title="Synthetic dataset"
             description="V1_syn.csv as the synthetic dataset."
             file={syntheticFile}
-            onSelectFile={(event) => setSyntheticFile(event.target.files?.[0] ?? null)}
+            error={syntheticFileError}
+            onSelectFile={(event) => {
+              const picked = event.target.files?.[0] ?? null;
+              if (!picked) { setSyntheticFile(null); setSyntheticFileError(""); return; }
+              const { valid, error } = validateCsv(picked);
+              setSyntheticFile(valid ? picked : null);
+              setSyntheticFileError(error);
+            }}
           />
         </div>
       </PageSection>
@@ -116,19 +142,21 @@ function UploadCard({
   title,
   description,
   file,         // currently selected file (null if none)
+  error,        // validation error message (empty string = no error)
   onSelectFile, // called when user picks a file
 }: {
   title: string;
   description: string;
   file: File | null;
+  error?: string;
   onSelectFile: (event: ChangeEvent<HTMLInputElement>) => void;
 }) {
   return (
     <SectionCard title={title} subtitle={description} className="upload-card">
       {/* Wrapping <input type="file"> in a <label> makes the entire dropzone area clickable */}
       <label className="upload-dropzone">
-        {/* accept restricts the file picker to CSV and Excel files */}
-        <input type="file" accept=".csv,.xlsx" onChange={onSelectFile} />
+        {/* accept restricts the file picker to CSV files only */}
+        <input type="file" accept=".csv" onChange={onSelectFile} />
 
         <span className="upload-icon">↑</span>
 
@@ -141,6 +169,11 @@ function UploadCard({
             : "Click to browse local CSV files"}
         </p>
       </label>
+
+      {/* Show error message if the selected file is not a CSV */}
+      {error && (
+        <p className="upload-error">{error}</p>
+      )}
     </SectionCard>
   );
 }
