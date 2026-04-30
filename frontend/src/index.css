@@ -528,6 +528,129 @@ p {
   padding-bottom: 0;
 }
 
+/* ── ChartCard ─────────────────────────────────────────────────────────────── */
+
+/* Outer container — holds chart-layout or chart-card-empty */
+.chart-card-body {
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Flex row: [y-axis label] + [chart-area column] */
+.chart-layout {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 8px;
+  flex: 1;
+}
+
+/* Y-axis label — rotated 90° so it reads bottom-to-top */
+.y-axis-label {
+  writing-mode: vertical-lr;
+  transform: rotate(180deg);
+  font-size: 12px;
+  color: var(--color-text-muted, #64748b);
+  text-align: center;
+  white-space: nowrap;
+  flex-shrink: 0;
+  padding: 4px 0;
+}
+
+/* Column that holds the chart content and the x-axis label */
+.chart-area {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+/* X-axis label — centred below the chart bars */
+.x-axis-label {
+  text-align: center;
+  font-size: 12px;
+  color: var(--color-text-muted, #64748b);
+  padding: 6px 0 0;
+}
+
+/* Centered muted text shown when hasData is false */
+.chart-card-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+  font-size: 14px;
+  color: var(--color-text-muted, #64748b);
+  text-align: center;
+  padding: 0 24px;
+}
+
+/* ── Recharts custom tooltip ───────────────────────────────────────────────── */
+
+.chart-tooltip {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.chart-tooltip-label {
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: #1e293b;
+}
+
+/* ── Multivariate placeholder sections ────────────────────────────────────── */
+
+.multivariate-placeholder {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Orange badge clearly marking incomplete backend sections */
+.mvp-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  border-radius: 4px;
+  padding: 2px 8px;
+  width: fit-content;
+}
+
+/* ── Results section dividers ──────────────────────────────────────────────── */
+
+.results-section-divider {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 0 4px;
+  border-top: 2px solid var(--color-border, #e2e8f0);
+  margin-top: 8px;
+}
+
+.results-section-label {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-primary, #2563eb);
+}
+
+.results-section-hint {
+  font-size: 12px;
+  color: var(--color-text-muted, #64748b);
+}
+
 .fake-chart {
   display: flex;
   flex-direction: column;
@@ -804,6 +927,21 @@ p {
 .comparison-bar {
   width: 28px;
   border-radius: 10px 10px 0 0;
+}
+
+/* Histogram style: bins are narrow and touch each other to show a distribution shape */
+.comparison-plot.histogram {
+  gap: 2px;
+  grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+}
+
+.comparison-plot.histogram .comparison-bar {
+  border-radius: 3px 3px 0 0;
+  width: 22px;
+}
+
+.comparison-plot.histogram .comparison-bars {
+  gap: 4px;
 }
 
 .action-row-on-desktop {
@@ -1105,4 +1243,202 @@ p {
 .heatmap-table th:last-child,
 .heatmap-table td:last-child {
   border-right: none;
+}
+
+/* ── SetupPage: Grouped Metric Selection ────────────────────────────────── */
+
+/* Top bar: "Select all core metrics" and "Clear all" buttons */
+.metric-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Wrapper for one top-level group: Univariate or Multivariate */
+.metric-group-section {
+  margin-bottom: 24px;
+}
+
+.metric-group-section:last-child {
+  margin-bottom: 0;
+}
+
+/* "Univariate Analysis" / "Multivariate Analysis" heading */
+.metric-group-heading {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+  padding: 8px 12px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 14px;
+  letter-spacing: 0.01em;
+}
+
+/* Wrapper for one subgroup: Numerical Metrics, Categorical Metrics, etc. */
+.metric-subgroup-section {
+  margin-bottom: 16px;
+  padding-left: 4px;
+}
+
+.metric-subgroup-section:last-child {
+  margin-bottom: 0;
+}
+
+/* "Numerical Metrics" / "Categorical Metrics" label */
+.metric-subgroup-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-soft);
+  margin-bottom: 8px;
+}
+
+/* Placeholder text when a subgroup has no implemented metrics yet */
+.metric-subgroup-placeholder {
+  font-size: 0.82rem;
+  color: var(--text-soft);
+  font-style: italic;
+  padding: 8px 12px;
+  background: var(--surface-muted);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  margin-bottom: 4px;
+}
+
+/* Vertical list of metric option cards inside a subgroup */
+.metric-option-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Text body inside each metric card (flex: 1 so it fills remaining width) */
+.metric-option-body {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Row of badges on the right of the metric label */
+.metric-badge-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* Description text under the metric label */
+.metric-description {
+  color: var(--text-soft);
+  margin-top: 4px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+/* Disabled/coming-soon metric card — muted and not clickable */
+.metric-option.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.metric-option.disabled input {
+  cursor: not-allowed;
+}
+
+/* ── SetupPage: Variable Type Review ───────────────────────────────────── */
+
+/* Grid table: 5 columns — display name, raw name, inferred badge, dropdown, reset */
+.type-review-table {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.type-review-header {
+  display: grid;
+  grid-template-columns: 2fr 2fr 1fr 1fr 1fr;
+  gap: 12px;
+  padding: 6px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-soft);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+/* Scrollable rows — shows 6 rows (~38px each) then scrolls */
+.type-review-rows {
+  max-height: 275px;
+  overflow-y: auto;
+}
+
+.type-review-row {
+  display: grid;
+  grid-template-columns: 2fr 2fr 1fr 1fr 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+}
+
+.type-review-row:nth-child(even) {
+  background: var(--surface-muted);
+}
+
+/* Highlight rows where user has changed the type */
+.type-review-row.overridden {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.type-review-display {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.type-review-raw {
+  font-size: 0.78rem;
+  color: var(--text-soft);
+  font-family: monospace;
+}
+
+/* Dropdown for selecting numerical / categorical */
+.type-review-select {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.82rem;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+/* Blue border when the user has changed the value */
+.type-review-select.changed {
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.type-review-na {
+  color: var(--text-soft);
+  font-size: 0.82rem;
+}
+
+/* Summary line: "2 overrides active. Reset all" */
+.type-review-summary {
+  margin-top: 12px;
+  font-size: 0.85rem;
+  color: var(--text-soft);
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }

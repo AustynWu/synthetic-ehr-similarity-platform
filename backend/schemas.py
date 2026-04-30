@@ -54,6 +54,9 @@ class EvaluationMetric(str, Enum):
     correlation_difference = "correlation_difference"
     category_proportion_difference = "category_proportion_difference"
     numerical_categorical_association = "numerical_categorical_association"
+    # Planned metrics — accepted by the API but not yet calculated.
+    # compute_metric() returns None for these, so they are silently skipped.
+    cramers_v_comparison = "cramers_v_comparison"
 
 class MissingValueHandling(str, Enum):
     ignore = "ignore"
@@ -127,6 +130,10 @@ class EvaluationConfig(BaseModel):
     includeCategorical: bool = True
     missingValueHandling: MissingValueHandling = MissingValueHandling.ignore
     significanceLevel: float = 0.05
+    # User-corrected variable types from the frontend type review step.
+    # Key = raw column name, value = "numerical" | "categorical"
+    # None or empty dict means use backend infer_type() for all columns.
+    columnTypeOverrides: Optional[dict[str, str]] = None
 
 
 # ── Evaluation result (backend → frontend) ────────────────────
@@ -174,10 +181,43 @@ class DetailViewMetric(BaseModel):
     normalizedScore: float             # 0-1 normalised for display
 
 class VariableDetailView(BaseModel):
-    chartType: str                     # "groupedBar" | "distributionComparison"
+    chartType: str          # "histogram_kde" | "grouped_bar"
     title: str
+    xAxisLabel: str
+    yAxisLabel: str
     series: list[DetailViewSeries]
     metrics: list[DetailViewMetric]
+
+
+# ── Multivariate result models ────────────────────────────────
+
+class CorrelationPair(BaseModel):
+    variable1: str
+    variable2: str
+    realCorrelation: float
+    syntheticCorrelation: float
+    difference: float           # |real - synthetic|, sorted desc
+
+class CramersVPair(BaseModel):
+    variable1: str
+    variable2: str
+    realCramersV: float
+    syntheticCramersV: float
+    difference: float           # sorted desc
+
+class GroupwiseSummaryRow(BaseModel):
+    numericalVariable: str
+    categoricalVariable: str
+    groupValue: str             # e.g. "NO", "Female", ">8"
+    realMean: float
+    syntheticMean: float
+    difference: float           # |real - synthetic|, sorted desc
+
+class MultivariateResults(BaseModel):
+    topCorrelationPairs: list[CorrelationPair]   # Numerical–Numerical
+    topCramersVPairs: list[CramersVPair]         # Categorical–Categorical
+    topGroupwiseRows: list[GroupwiseSummaryRow]  # Mixed
+
 
 class EvaluationResult(BaseModel):
     runId: str
@@ -189,6 +229,7 @@ class EvaluationResult(BaseModel):
     metricMatrix: MetricMatrix
     detailViews: dict[str, VariableDetailView]              # keyed by variable name
     insights: list[str]
+    multivariateResults: Optional[MultivariateResults] = None
 
 
 # ── Saved comparison record ───────────────────────────────────
@@ -214,3 +255,21 @@ class MetricDefinition(BaseModel):
     label: str
     description: str
     appliesTo: str   # "numerical" | "categorical" | "multivariate" | "cross_type"
+
+
+# ── Request models ────────────────────────────────────────────
+
+class ValidateRequest(BaseModel):
+    realDatasetId: str
+    syntheticDatasetId: str
+
+class RunEvaluationRequest(BaseModel):
+    realDatasetId: str
+    syntheticDatasetId: str
+    config: EvaluationConfig
+
+class SaveComparisonRequest(BaseModel):
+    evaluationResult: EvaluationResult
+    realDatasetName: str
+    syntheticDatasetName: str
+    metricsUsed: list[EvaluationMetric]

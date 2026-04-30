@@ -2,7 +2,16 @@
   "permissions": {
     "allow": [
       "Bash(npm run:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Read(//c/Users/fish9_qb2aj7s/Desktop/INFO6002 Postgraduate Capstone Project/**)",
+      "Bash(python -c ':*)",
+      "Bash(pip install:*)",
+      "Bash(python:*)",
+      "Bash(/c/Users/fish9_qb2aj7s/Desktop/INFO6002 Postgraduate Capstone Project/synthetic-ehr-similarity-platform-prototype/backend/.venv/Scripts/pip.exe install:*)",
+      "Bash(\"/c/Users/fish9_qb2aj7s/Desktop/INFO6002 Postgraduate Capstone Project/synthetic-ehr-similarity-platform-prototype/backend/.venv/Scripts/pip.exe\" --version)",
+      "Bash(\"/c/Users/fish9_qb2aj7s/Desktop/INFO6002 Postgraduate Capstone Project/synthetic-ehr-similarity-platform-prototype/backend/.venv/Scripts/python.exe\" --version)",
+      "Bash(cmd:*)",
+      "Bash(powershell:*)"
     ]
   }
 }

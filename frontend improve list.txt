@@ -1,0 +1,554 @@
+You are helping me update the frontend of a React + Vite + TypeScript capstone project.
+
+Project title:
+Synthetic vs Real Health Record Similarity Evaluation Platform
+
+Project purpose:
+The system compares real health record datasets with synthetic/generated health record datasets. Users upload real and synthetic datasets, validate them, select variables and similarity metrics, run evaluation, and view results in a dashboard.
+
+Important context:
+This is not just UI beautification. The supervisor reviewed our prototype and gave specific feedback about the frontend structure, metric selection, dashboard, and visualisations. Please improve the existing frontend based on that feedback.
+
+Before editing:
+1. Inspect the current frontend structure.
+2. Find pages/components related to:
+   - Upload
+   - Validation summary
+   - Evaluation setup
+   - Metric selection
+   - Results dashboard
+   - Charts
+   - Variable ranking table
+   - Mock results/data
+   - Services/types
+3. Do not rewrite the whole app from scratch.
+4. Do not remove the existing user flow.
+5. Keep the app runnable.
+6. If backend integration is not ready, keep using typed mock data but design the structure so it can later connect to API responses.
+7. Before editing files, first give me a short implementation plan and list the files you plan to modify.
+
+Supervisor feedback to implement:
+1. Metric selection should not be a flat list.
+2. Metrics should be grouped into Univariate and Multivariate analysis.
+3. Univariate should be split into Numerical and Categorical.
+4. Multivariate should be split into Numerical–Numerical, Categorical–Categorical, and Mixed / Numerical–Categorical.
+5. Dashboard visualisations should follow the same analysis grouping.
+6. The Importance column should be removed for now because it requires user-defined values and makes the MVP more complicated.
+7. Variables should be sorted by similarity score instead, with lower similarity variables shown first.
+8. Overall similarity score should be worded carefully as an indicative prototype summary, not a final scientific truth.
+9. Every chart must have a clear title, x-axis label, y-axis label, and legend.
+10. Raw column names should not be displayed directly in chart titles or user-facing labels.
+11. Continuous numerical variables should use histogram/KDE-style distribution comparison.
+12. Discrete numerical variables should use grouped bar charts by each discrete value.
+13. Categorical variables should use grouped bar charts by category.
+14. time_in_hospital should not be grouped into broad bins like 1–3 days / 4–6 days. It should use discrete values like 1, 2, 3, 4, 5 days on the x-axis.
+15. num_days_from_ref_to_birth_date should be displayed as Age, not as the raw column name. If actual values are available, convert days to years using days / 365.25.
+
+Expected UI changes:
+
+==================================================
+TASK 1 — Metric definitions
+==================================================
+
+Find the current metric list or create a typed metric definition file if needed.
+
+Each metric should have:
+- key
+- label
+- description
+- group
+- subgroup
+- applicableVariableTypes
+- priority
+
+Suggested types:
+
+type MetricGroup = "Univariate" | "Multivariate";
+
+type MetricSubgroup =
+  | "Numerical"
+  | "Categorical"
+  | "Numerical–Numerical"
+  | "Categorical–Categorical"
+  | "Mixed";
+
+type VariableType =
+  | "continuous_numerical"
+  | "discrete_numerical"
+  | "categorical"
+  | "unknown";
+
+interface MetricDefinition {
+  key: string;
+  label: string;
+  description: string;
+  group: MetricGroup;
+  subgroup: MetricSubgroup;
+  applicableVariableTypes: VariableType[];
+  priority: "Core" | "Recommended" | "Optional";
+}
+
+Metrics to include:
+
+Univariate > Numerical:
+- Mean Difference
+- Median Difference
+- Standard Deviation Difference
+- IQR Difference
+- KS Statistic
+- Wasserstein Distance
+
+Univariate > Categorical:
+- Category Proportion Comparison
+- Chi-square Statistic
+- Unseen / Invalid Category Check
+- Total Variation Distance, if already supported
+
+Multivariate > Numerical–Numerical:
+- Pearson Correlation Comparison
+- Correlation Matrix Distance
+- Spearman Correlation Comparison, if already supported
+
+Multivariate > Categorical–Categorical:
+- Cramér’s V Comparison
+- Selected Joint Distribution Comparison
+
+Multivariate > Mixed:
+- Group-wise Summary Comparison
+- Correlation Ratio Eta
+- Mutual Information, if already supported
+
+If a metric is not implemented in backend yet, it can still exist in mock/frontend as planned MVP UI, but do not claim backend calculation is complete.
+
+==================================================
+TASK 2 — Evaluation Setup page
+==================================================
+
+Update the Evaluation Setup page.
+
+Current problem:
+Metrics are likely shown as one flat list.
+
+Required change:
+Show metrics grouped by analysis type.
+
+Expected structure:
+
+Metric Selection
+
+Univariate Analysis
+  Numerical Metrics
+    metric cards / checkboxes
+  Categorical Metrics
+    metric cards / checkboxes
+
+Multivariate Analysis
+  Numerical–Numerical Metrics
+    metric cards / checkboxes
+  Categorical–Categorical Metrics
+    metric cards / checkboxes
+  Mixed-type Metrics
+    metric cards / checkboxes
+
+Each metric card should show:
+- metric label
+- short description
+- applicable type
+- priority badge if possible
+
+Keep existing selected metric state working.
+
+If there is a running summary, update it so it shows selected metrics by group, for example:
+- Univariate Numerical: 4 selected
+- Univariate Categorical: 2 selected
+- Multivariate: 1 selected
+
+If there is a “select all” function:
+- Change it to “Select all core metrics”
+- Or add group-level select buttons, if easy.
+
+Add helper text:
+“Metrics are grouped by analysis type to make the evaluation easier to understand.”
+
+==================================================
+TASK 3 — Variable selection
+==================================================
+
+Improve variable selection if it exists.
+
+Expected behaviour:
+- User can search variables.
+- User can see variable type.
+- User can filter by numerical / categorical if possible.
+- User can select variables for evaluation.
+- If many variables are selected, show a warning that too many variables may make the dashboard harder to read.
+
+For now, mock variable types are acceptable.
+
+Special variable handling:
+- num_days_from_ref_to_birth_date should display as Age.
+- time_in_hospital should display as Time in Hospital and be treated as discrete_numerical.
+
+==================================================
+TASK 4 — Display name mapping
+==================================================
+
+Create a helper function:
+
+getVariableDisplayName(rawName: string): string
+
+Use these mappings:
+
+num_days_from_ref_to_birth_date -> Age
+time_in_hospital -> Time in Hospital
+num_lab_procedures -> Number of Lab Procedures
+num_procedures -> Number of Procedures
+num_medications -> Number of Medications
+number_outpatient -> Number of Outpatient Visits
+number_emergency -> Number of Emergency Visits
+number_inpatient -> Number of Inpatient Visits
+diag_1 -> Primary Diagnosis
+diag_2 -> Secondary Diagnosis
+diag_3 -> Additional Diagnosis
+readmitted -> Readmission Status
+gender -> Gender
+race -> Race
+admission_type_id -> Admission Type
+discharge_disposition_id -> Discharge Disposition
+admission_source_id -> Admission Source
+medical_specialty -> Medical Specialty
+payer_code -> Payer Code
+A1Cresult -> A1C Result
+max_glu_serum -> Maximum Glucose Serum
+
+Fallback:
+Convert snake_case to Title Case.
+
+Do not show raw column names in chart titles if a display name exists.
+
+==================================================
+TASK 5 — Results dashboard structure
+==================================================
+
+Update the Results Dashboard.
+
+Expected sections or tabs:
+
+1. Overview
+2. Univariate Numerical
+3. Univariate Categorical
+4. Multivariate Numerical
+5. Multivariate Categorical
+6. Mixed-type Analysis
+7. Variable Details
+
+If tabs are too large a change, use section cards stacked vertically.
+
+Overview should include:
+- Indicative Similarity Summary
+- number of variables analysed
+- number of Good / Review / Poor variables
+- selected metric groups
+- note that detailed variable-level results should be reviewed
+
+Use cautious wording:
+Title: Indicative Similarity Summary
+Helper text:
+“This is a prototype summary based on selected normalised metrics. Detailed variable-level results should also be reviewed.”
+
+Do not write:
+“Final similarity score”
+“Scientific final score”
+“Complete similarity measurement”
+
+==================================================
+TASK 6 — Remove Importance column
+==================================================
+
+Search for:
+- importance
+- importanceScore
+- weight
+- variable weight
+
+Remove the Importance column from the variable ranking table.
+
+New table columns:
+Variable | Data Type | Similarity Score | Main Metric | Status | Action
+
+Default sorting:
+Sort by similarityScore ascending.
+
+Meaning:
+Variables with lower similarity scores appear first because they need review.
+
+Suggested status rule:
+similarityScore >= 0.85 -> Good
+0.70 <= similarityScore < 0.85 -> Review
+similarityScore < 0.70 -> Poor
+
+Add helper text:
+“Variables with lower similarity scores are listed first for review.”
+
+==================================================
+TASK 7 — Chart wrapper
+==================================================
+
+Create or update a reusable ChartCard / ChartWrapper component.
+
+Every chart must show:
+- title
+- subtitle or short note if needed
+- x-axis label
+- y-axis label
+- legend
+- empty state if data is missing
+
+Suggested props:
+interface ChartCardProps {
+  title: string;
+  subtitle?: string;
+  xAxisLabel: string;
+  yAxisLabel: string;
+  legendItems?: string[];
+  children: React.ReactNode;
+}
+
+==================================================
+TASK 8 — Chart type logic
+==================================================
+
+Create helper function:
+
+getChartType(variableName: string, variableType: VariableType, analysisType?: string): ChartType
+
+Suggested ChartType:
+type ChartType =
+  | "histogram_kde"
+  | "grouped_bar"
+  | "correlation_heatmap"
+  | "grouped_boxplot"
+  | "summary_table";
+
+Logic:
+- continuous_numerical -> histogram_kde
+- discrete_numerical -> grouped_bar
+- categorical -> grouped_bar
+- numerical–numerical analysis -> correlation_heatmap
+- mixed analysis -> grouped_boxplot or summary_table
+
+Special cases:
+- time_in_hospital -> discrete_numerical -> grouped_bar
+- num_days_from_ref_to_birth_date -> continuous_numerical -> histogram_kde and display as Age
+
+==================================================
+TASK 9 — Continuous numerical chart
+==================================================
+
+For continuous numerical variables, use histogram + KDE-style distribution comparison if possible.
+
+This chart is suitable for variables like:
+- Age
+- Number of Lab Procedures
+- Number of Medications
+- continuous lab values
+
+Required display:
+Title: Distribution of [Display Name]: Real vs Synthetic
+x-axis: [Display Name] or meaningful unit
+y-axis: Count or Density
+legend: Real / Synthetic
+
+For num_days_from_ref_to_birth_date:
+Display as:
+Title: Distribution of Age: Real vs Synthetic
+x-axis: Age in years
+y-axis: Count
+
+If actual value conversion is possible:
+age = num_days_from_ref_to_birth_date / 365.25
+
+If only mock bins are used:
+Use labels such as:
+20–30, 30–40, 40–50, 50–60, 60–70, 70–80, 80+
+
+Do not display:
+num_days_from_ref_to_birth_date_Distribution
+
+==================================================
+TASK 10 — Discrete numerical chart
+==================================================
+
+For time_in_hospital, use grouped bar chart by each discrete value.
+
+Do not use broad bins:
+- 1–3 days
+- 4–6 days
+- 7–9 days
+- 10+ days
+
+Use:
+- 1
+- 2
+- 3
+- 4
+- 5
+- 6
+- 7
+- 8+
+
+Chart display:
+Title: Time in Hospital Distribution: Real vs Synthetic
+x-axis: Number of days in hospital
+y-axis: Count or Percentage of patients
+legend: Real / Synthetic
+
+Example data:
+[
+  { "label": "1", "real": 0.12, "synthetic": 0.11 },
+  { "label": "2", "real": 0.15, "synthetic": 0.14 },
+  { "label": "3", "real": 0.13, "synthetic": 0.135 },
+  { "label": "4", "real": 0.10, "synthetic": 0.11 },
+  { "label": "5", "real": 0.08, "synthetic": 0.09 },
+  { "label": "6", "real": 0.07, "synthetic": 0.07 },
+  { "label": "7", "real": 0.05, "synthetic": 0.055 },
+  { "label": "8+", "real": 0.20, "synthetic": 0.205 }
+]
+
+==================================================
+TASK 11 — Categorical chart
+==================================================
+
+For categorical variables, use grouped bar chart by category.
+
+Examples:
+
+Gender:
+Title: Gender Distribution: Real vs Synthetic
+x-axis: Gender
+y-axis: Percentage of patients
+legend: Real / Synthetic
+
+Readmission Status:
+Title: Readmission Status Distribution: Real vs Synthetic
+x-axis: Readmission Status
+y-axis: Percentage of patients
+legend: Real / Synthetic
+
+Example data:
+[
+  { "label": "Male", "real": 0.48, "synthetic": 0.50 },
+  { "label": "Female", "real": 0.52, "synthetic": 0.50 }
+]
+
+==================================================
+TASK 12 — Heatmap and multivariate results
+==================================================
+
+If there is an existing heatmap, keep it but improve labels.
+
+For numerical–numerical:
+Use correlation heatmap or correlation difference heatmap.
+
+For categorical–categorical:
+Use Cramér’s V heatmap or selected joint distribution summary.
+
+For mixed-type:
+Use grouped boxplot or group-wise summary table.
+
+If these charts are not implemented yet, create placeholder section cards with realistic mock summaries, but clearly mark them as MVP / future API integration.
+
+Do not pretend backend calculations are complete if they are not.
+
+==================================================
+TASK 13 — Mock data update
+==================================================
+
+If the app uses mock data, update the mock data to match the new structure.
+
+Include at least these variables:
+
+1. Age
+raw variable: num_days_from_ref_to_birth_date
+type: continuous_numerical
+chartType: histogram_kde
+title: Distribution of Age: Real vs Synthetic
+xAxisLabel: Age in years
+yAxisLabel: Count
+
+2. Time in Hospital
+raw variable: time_in_hospital
+type: discrete_numerical
+chartType: grouped_bar
+title: Time in Hospital Distribution: Real vs Synthetic
+xAxisLabel: Number of days in hospital
+yAxisLabel: Percentage of patients
+
+3. Gender
+raw variable: gender
+type: categorical
+chartType: grouped_bar
+title: Gender Distribution: Real vs Synthetic
+xAxisLabel: Gender
+yAxisLabel: Percentage of patients
+
+4. Readmission Status
+raw variable: readmitted
+type: categorical
+chartType: grouped_bar
+title: Readmission Status Distribution: Real vs Synthetic
+xAxisLabel: Readmission Status
+yAxisLabel: Percentage of patients
+
+5. Number of Lab Procedures
+raw variable: num_lab_procedures
+type: continuous_numerical
+chartType: histogram_kde
+title: Distribution of Number of Lab Procedures: Real vs Synthetic
+xAxisLabel: Number of lab procedures
+yAxisLabel: Count
+
+==================================================
+TASK 14 — README update
+==================================================
+
+If README exists, update frontend run instructions.
+
+Include:
+- npm install
+- npm run dev
+- npm run build
+- backend API URL configuration if available
+- note about mock data mode if backend is not fully integrated
+- known limitations / future integration
+
+==================================================
+TASK 15 — Acceptance criteria
+==================================================
+
+The update is complete only if:
+
+1. Metric selection is grouped, not flat.
+2. Univariate and Multivariate are clearly separated.
+3. Numerical, categorical, numerical–numerical, categorical–categorical, and mixed groups are visible.
+4. Dashboard has clearer sections or tabs by analysis type.
+5. Importance column is removed.
+6. Variable table sorts by similarity score, lowest first.
+7. Overall score wording is cautious and says it is indicative.
+8. Charts have title, x-axis label, y-axis label, and legend.
+9. Raw column names are not shown in chart titles when display names exist.
+10. num_days_from_ref_to_birth_date is shown as Age.
+11. time_in_hospital uses discrete values, not broad bins.
+12. Continuous numerical variables use distribution comparison.
+13. Discrete numerical and categorical variables use grouped bar charts.
+14. The app still builds and runs.
+15. Any mock-only or future backend work is clearly mentioned.
+
+Before editing files:
+Please inspect the codebase and give me:
+1. The files you found related to these changes.
+2. Your implementation plan.
+3. Any assumptions.
+4. Any risks.
+
+Do not edit yet until I confirm the plan.

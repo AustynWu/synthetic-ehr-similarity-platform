@@ -7,10 +7,11 @@
 //   4. Pass action handlers and data down to child pages via props
 //
 // useState  — stores mutable data; triggers re-render when updated
+// useEffect — runs side effects after render (used here to load saved comparisons on mount)
 // useMemo   — caches computed values; recalculates only when dependencies change
 // props     — data passed from parent to child component
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import AppLayout from "./components/layout/AppLayout";
 
@@ -25,6 +26,8 @@ import { navigationItems, pageTitles } from "./utils/navigation";
 import { uploadDatasets, getValidationSummary } from "./services/datasetService";
 import { getDefaultEvaluationConfig, runEvaluation } from "./services/evaluationService";
 import { getSavedComparisons, saveCurrentComparison } from "./services/comparisonService";
+import { USE_REAL_API } from "./services/apiClient";
+import { mockEvaluationResult } from "./mocks/results";
 
 import type {
   EvaluationConfig,
@@ -57,13 +60,22 @@ export default function App() {
     getDefaultEvaluationConfig() // defaults: KS test, Chi-square, Mean Difference
   );
 
-  // Similarity scores produced after running evaluation
-  const [evaluationResult, setEvaluationResult] = useState<EvaluationResult | null>(null);
-
-  // List of saved comparison runs (pre-loaded from mock data)
-  const [savedComparisons, setSavedComparisons] = useState<SavedComparison[]>(
-    getSavedComparisons()
+  // Similarity scores produced after running evaluation.
+  // In mock mode: pre-load so Results page works immediately without running evaluation.
+  // In real API mode: starts null until the user runs evaluation on Setup page.
+  const [evaluationResult, setEvaluationResult] = useState<EvaluationResult | null>(
+    USE_REAL_API ? null : mockEvaluationResult
   );
+
+  // List of saved comparison runs
+  const [savedComparisons, setSavedComparisons] = useState<SavedComparison[]>([]);
+
+  // Load saved comparisons once on mount.
+  // In mock mode: getSavedComparisons() returns the in-memory list (seeded with mock data).
+  // In real API mode: fetches GET /comparisons from the backend.
+  useEffect(() => {
+    getSavedComparisons().then(setSavedComparisons).catch(console.error);
+  }, []);
 
   // ── Completed steps (shown as check marks in the sidebar) ──
   // Recalculates only when any dependency changes
@@ -80,27 +92,43 @@ export default function App() {
   // ── Event handlers ───────────────────────────────────────
   // These functions are passed to child pages so pages can notify App of changes.
 
-  // Called when user clicks "Validate & Continue" on Upload page
+  // Called when user clicks "Validate & Continue" on Upload page.
+  // Real API: passes dataset IDs from the upload response to the validate call.
+  // Mock:     IDs are undefined — getValidationSummary falls back to mock data.
   const handleUploadContinue = async (files: UploadFilesInput) => {
     const datasets = await uploadDatasets(files);
-    const summary = await getValidationSummary();
     setUploadedDatasets(datasets);
+
+    const datasetIds =
+      datasets.realDataset?.id && datasets.syntheticDataset?.id
+        ? { realDatasetId: datasets.realDataset.id, syntheticDatasetId: datasets.syntheticDataset.id }
+        : undefined;
+
+    const summary = await getValidationSummary(datasetIds);
     setValidationSummary(summary);
     setCurrentPage("validation");
   };
 
-  // Called when user clicks "Run Evaluation" on Setup page
+  // Called when user clicks "Run Evaluation" on Setup page.
+  // Real API: passes dataset IDs so the backend knows which files to analyse.
+  // Mock:     IDs are undefined — runEvaluation falls back to mock data.
   const handleRunEvaluation = async (config: EvaluationConfig) => {
     setEvaluationConfig(config);
-    const result = await runEvaluation(config);
+
+    const datasetIds =
+      uploadedDatasets.realDataset?.id && uploadedDatasets.syntheticDataset?.id
+        ? { realDatasetId: uploadedDatasets.realDataset.id, syntheticDatasetId: uploadedDatasets.syntheticDataset.id }
+        : undefined;
+
+    const result = await runEvaluation(config, datasetIds);
     setEvaluationResult(result);
     setCurrentPage("results");
   };
 
   // Called when user clicks "Save Comparison" on Results page
-  const handleSaveComparison = () => {
+  const handleSaveComparison = async () => {
     if (!evaluationResult) return;
-    const updated = saveCurrentComparison({ evaluationConfig, evaluationResult, uploadedDatasets });
+    const updated = await saveCurrentComparison({ evaluationConfig, evaluationResult, uploadedDatasets });
     setSavedComparisons(updated);
     setCurrentPage("saved");
   };

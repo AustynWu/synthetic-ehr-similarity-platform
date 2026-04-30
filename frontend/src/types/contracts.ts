@@ -110,29 +110,95 @@ export interface ValidationSummary {
 
 // ── Evaluation config types ────────────────────────────────
 
+// Top-level analysis group shown in the Setup page
+export type MetricGroup = "Univariate" | "Multivariate";
+
+// Sub-section within each group
+export type MetricSubgroup =
+  | "Numerical"
+  | "Categorical"
+  | "Numerical–Numerical"
+  | "Categorical–Categorical"
+  | "Mixed";
+
+// More granular variable type used for chart and metric logic
+// continuous_numerical — e.g. age, num_lab_procedures (many unique values)
+// discrete_numerical   — e.g. time_in_hospital (small integer range)
+// categorical          — e.g. gender, readmitted
+// unknown              — type could not be determined
+export type VariableType =
+  | "continuous_numerical"
+  | "discrete_numerical"
+  | "categorical"
+  | "unknown";
+
+// Chart rendering style chosen based on variable type
+export type ChartType =
+  | "histogram_kde"       // distribution curve — for continuous numerical
+  | "grouped_bar"         // side-by-side bars  — for discrete numerical and categorical
+  | "correlation_heatmap" // matrix heat colours — for numerical-numerical multivariate
+  | "grouped_boxplot"     // box per group       — for mixed analysis
+  | "summary_table";      // plain table         — fallback
+
 // Supported statistical metrics
-// mean_difference          — compare numerical averages
-// ks_test                  — compare distribution shape (Kolmogorov-Smirnov)
-// wasserstein_distance     — another distribution comparison method
-// chi_square               — compare categorical column distributions
-// correlation_difference   — compare multi-variable relationships
-// category_proportion_diff — compare category proportions
+// ── Implemented (backend ready) ──────────────────────────────────
+// mean_difference                  — compare numerical averages
+// ks_test                          — compare distribution shape (Kolmogorov-Smirnov)
+// wasserstein_distance             — another distribution comparison method
+// chi_square                       — compare categorical column distributions
+// correlation_difference           — compare multi-variable relationships
+// category_proportion_difference   — compare category proportions
 // numerical_categorical_association — compare how a numerical variable shifts across category groups
+// ── Planned (frontend display only, not yet in backend) ──────────
+// median_difference                — compare medians
+// std_difference                   — compare standard deviations
+// iqr_difference                   — compare interquartile ranges
+// unseen_category_check            — flag categories in synthetic not seen in real
+// total_variation_distance         — sum of absolute proportion differences
+// correlation_matrix_distance      — compare full correlation matrices
+// spearman_correlation             — rank-based correlation comparison
+// cramers_v_comparison             — association strength for categorical pairs
+// joint_distribution_comparison    — compare joint category distributions
+// group_summary_comparison         — compare numerical stats across category groups
+// correlation_ratio_eta            — numerical-categorical association strength
+// mutual_information               — shared information between two variables
 export type EvaluationMetric =
+  // Implemented
   | "mean_difference"
   | "ks_test"
   | "wasserstein_distance"
   | "chi_square"
   | "correlation_difference"
   | "category_proportion_difference"
-  | "numerical_categorical_association";
+  | "numerical_categorical_association"
+  // Planned — frontend display only
+  | "median_difference"
+  | "std_difference"
+  | "iqr_difference"
+  | "unseen_category_check"
+  | "total_variation_distance"
+  | "correlation_matrix_distance"
+  | "spearman_correlation"
+  | "cramers_v_comparison"
+  | "joint_distribution_comparison"
+  | "group_summary_comparison"
+  | "correlation_ratio_eta"
+  | "mutual_information";
 
 // Describes one metric in the Setup page option list
 export interface MetricDefinition {
   key: EvaluationMetric;
-  label: string;           // display name
-  description: string;     // what this metric measures
+  label: string;
+  description: string;
+  // Legacy field — kept for backward compatibility with backend response
   appliesTo: "numerical" | "categorical" | "multivariate" | "cross_type";
+  // New fields — optional so old backend responses still work
+  group?: MetricGroup;
+  subgroup?: MetricSubgroup;
+  applicableVariableTypes?: VariableType[];
+  priority?: "Core" | "Recommended" | "Optional";
+  // false means this metric is planned but not yet calculated by the backend
+  implemented?: boolean;
 }
 
 // User's evaluation settings chosen on the Setup page
@@ -142,7 +208,11 @@ export interface EvaluationConfig {
   includeNumerical: boolean;
   includeCategorical: boolean;
   missingValueHandling: "ignore" | "drop" | "simple_impute";
-  significanceLevel: number; // typically 0.05
+  significanceLevel: number;
+  // User-corrected variable types — overrides backend infer_type() result.
+  // Key = raw column name, value = "numerical" | "categorical"
+  // Empty object means no overrides — use backend inference for everything.
+  columnTypeOverrides: Record<string, "numerical" | "categorical">;
 }
 
 // ── Evaluation result types ────────────────────────────────
@@ -212,10 +282,49 @@ export interface DetailViewMetric {
 
 // Full detail view for one variable (chart + metric breakdown)
 export interface VariableDetailView {
-  chartType: "groupedBar" | "distributionComparison";
+  chartType: ChartType;   // uses the same ChartType as getChartType() — backend is the authority
   title: string;
+  xAxisLabel: string;     // shown below the chart
+  yAxisLabel: string;     // shown rotated on the left side
   series: DetailViewSeries[];
   metrics: DetailViewMetric[];
+}
+
+// ── Multivariate result types ──────────────────────────────────
+
+// One Pearson correlation pair (Numerical × Numerical)
+export interface CorrelationPair {
+  variable1: string;
+  variable2: string;
+  realCorrelation: number;
+  syntheticCorrelation: number;
+  difference: number;  // |real - synthetic|, sorted desc by backend
+}
+
+// One Cramér's V pair (Categorical × Categorical)
+export interface CramersVPair {
+  variable1: string;
+  variable2: string;
+  realCramersV: number;
+  syntheticCramersV: number;
+  difference: number;  // sorted desc by backend
+}
+
+// One group row (Numerical × Categorical group value)
+export interface GroupwiseSummaryRow {
+  numericalVariable: string;
+  categoricalVariable: string;
+  groupValue: string;   // e.g. "NO", "Female", ">8"
+  realMean: number;
+  syntheticMean: number;
+  difference: number;   // |real - synthetic|, sorted desc by backend
+}
+
+// All multivariate results — backend selects top K pairs per section
+export interface MultivariateResults {
+  topCorrelationPairs: CorrelationPair[];   // Numerical–Numerical
+  topCramersVPairs: CramersVPair[];         // Categorical–Categorical
+  topGroupwiseRows: GroupwiseSummaryRow[];  // Mixed
 }
 
 // Complete evaluation result returned by the backend (or mock)
@@ -229,6 +338,7 @@ export interface EvaluationResult {
   metricMatrix: MetricMatrix;
   detailViews: Record<string, VariableDetailView>; // keyed by variable name
   insights: string[];
+  multivariateResults?: MultivariateResults;       // absent if backend hasn't computed it yet
 }
 
 // One saved comparison run (used in the Saved page table)
@@ -288,6 +398,18 @@ export interface SectionCardProps {
   subtitle?: string;
   children: ReactNode;
   className?: string;
+}
+
+// ChartCard props — chart panel with built-in empty state and axis labels
+export interface ChartCardProps {
+  title: string;
+  subtitle?: string;
+  xAxisLabel: string;        // label below the chart (e.g. "Readmission Status")
+  yAxisLabel: string;        // label rotated on the left (e.g. "Percentage of patients")
+  legendItems?: string[];    // optional legend override; child chart may have its own
+  hasData: boolean;          // true = show children, false = show emptyMessage
+  emptyMessage?: string;     // shown when hasData is false
+  children: ReactNode;
 }
 
 // PageSection props

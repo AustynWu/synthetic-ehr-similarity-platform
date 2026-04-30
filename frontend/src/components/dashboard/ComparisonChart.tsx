@@ -1,92 +1,83 @@
-// ComparisonChart.tsx — real vs synthetic side-by-side bar chart
+// ComparisonChart.tsx — grouped bar chart for categorical variables (Recharts)
 //
-// Renders paired vertical bars using pure CSS (no chart library needed).
-//   Dark blue  = real data proportion
-//   Light blue = synthetic data proportion
+// Shows real vs synthetic proportions side-by-side for each category.
+// Used for: gender, readmitted, insulin, A1Cresult, time_in_hospital, etc.
 //
-// Each category (e.g. "NO", ">30", "<30") gets two bars:
-//   realHeight      = (realValue / max) * 100%
-//   syntheticHeight = (syntheticValue / max) * 100%
-//
-// max = largest value across all points — acts as the 100% baseline.
-//   Math.max(10, ...) ensures bars are always at least 10% tall (prevents invisible bars).
-//   The trailing 1 in Math.max(..., 1) prevents division-by-zero on empty data.
+// Backend integration: replace props.points with API response series data.
+// Data shape (label / realValue / syntheticValue) matches DetailViewSeries.
 
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  type TooltipProps,
+} from "recharts";
 import type { ChartPoint } from "../../types/contracts";
 
-export default function ComparisonChart({
-  title,
-  subtitle,
-  points,
-}: {
-  title?: string;   // optional — omit when the parent SectionCard already shows the name
-  subtitle?: string;
-  points: ChartPoint[];
-}) {
-  // Largest value across all data points — used as the 100% height baseline
-  const max = Math.max(
-    ...points.flatMap((point) => [point.realValue, point.syntheticValue]),
-    1 // at least 1 to avoid divide-by-zero on empty data
+const REAL_COLOR      = "#2563eb"; // blue — matches DistributionChart
+const SYNTHETIC_COLOR = "#f97316"; // orange — matches DistributionChart
+
+function CustomTooltip({ active, payload, label }: TooltipProps<number, string>) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="chart-tooltip">
+      <p className="chart-tooltip-label">{label}</p>
+      {payload.map((entry) => (
+        <p key={entry.name} style={{ color: entry.color }}>
+          {entry.name}: {((entry.value ?? 0) * 100).toFixed(1)}%
+        </p>
+      ))}
+    </div>
   );
+}
+
+export default function ComparisonChart({ points }: { points: ChartPoint[] }) {
+  const data = points.map((p) => ({
+    label:     p.label,
+    Real:      p.realValue,
+    Synthetic: p.syntheticValue,
+  }));
 
   return (
-    <div className="comparison-chart">
-      {/* Title block — only rendered when title or subtitle is provided */}
-      {(title || subtitle) && (
-        <div className="card-header compact">
-          <div>
-            {title && <h3>{title}</h3>}
-            {subtitle && <p>{subtitle}</p>}
-          </div>
-        </div>
-      )}
+    <ResponsiveContainer width="100%" height={280}>
+      <BarChart
+        data={data}
+        barCategoryGap="30%"
+        barGap={4}
+        margin={{ top: 8, right: 24, bottom: 4, left: 0 }}
+      >
+        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
 
-      {/* Legend */}
-      <div className="comparison-legend">
-        <span className="legend-item">
-          <i className="legend-dot real" /> Real data
-        </span>
-        <span className="legend-item">
-          <i className="legend-dot synthetic" /> Synthetic data
-        </span>
-      </div>
+        <XAxis
+          dataKey="label"
+          tick={{ fontSize: 11 }}
+          interval={0}
+          angle={points.length > 6 ? -30 : 0}
+          textAnchor={points.length > 6 ? "end" : "middle"}
+          height={points.length > 6 ? 48 : 24}
+        />
 
-      {/* Bar chart plot area */}
-      <div className="comparison-plot">
-        {points.map((point) => {
-          // Convert values to height percentages relative to max
-          const realHeight      = `${Math.max(10, (point.realValue      / max) * 100)}%`;
-          const syntheticHeight = `${Math.max(10, (point.syntheticValue / max) * 100)}%`;
+        <YAxis
+          tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`}
+          tick={{ fontSize: 11 }}
+          width={42}
+        />
 
-          return (
-            <div key={point.label} className="comparison-group">
-              {/* Two bars side by side */}
-              <div className="comparison-bars">
-                {/* Real data bar (dark blue) */}
-                <div
-                  className="comparison-bar real"
-                  style={{ height: realHeight }}
-                  title={`Real: ${point.realValue}`}
-                />
-                {/* Synthetic data bar (light blue) */}
-                <div
-                  className="comparison-bar synthetic"
-                  style={{ height: syntheticHeight }}
-                  title={`Synthetic: ${point.syntheticValue}`}
-                />
-              </div>
+        <Tooltip content={<CustomTooltip />} />
 
-              {/* Category label (e.g. "NO", ">30") */}
-              <strong>{point.label}</strong>
+        <Legend
+          iconType="square"
+          wrapperStyle={{ fontSize: 12, paddingTop: 4 }}
+        />
 
-              {/* Value label (e.g. "54% vs 53%") — raw values are 0–1 decimals, multiply by 100 */}
-              <span>
-                {Math.round(point.realValue * 100)}% vs {Math.round(point.syntheticValue * 100)}%
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+        <Bar dataKey="Real"      fill={REAL_COLOR}      fillOpacity={0.85} radius={[3, 3, 0, 0]} isAnimationActive={false} />
+        <Bar dataKey="Synthetic" fill={SYNTHETIC_COLOR} fillOpacity={0.85} radius={[3, 3, 0, 0]} isAnimationActive={false} />
+      </BarChart>
+    </ResponsiveContainer>
   );
 }

@@ -5,17 +5,9 @@
 //   2. Which columns to include in the comparison
 // Clicking "Run Evaluation" runs the stats and navigates to the Results page.
 //
-// Functional update pattern:
-//   setConfig((current) => { ...current, selectedMetrics: [...] })
-//   Using a function ensures the latest state value is read, avoiding stale-closure bugs.
-//
-// useMemo:
-//   representativeColumns is computed from validationSummary.
-//   Memoised so it only recalculates when validationSummary changes.
-//
-// onRunEvaluation type:
-//   (config: EvaluationConfig) => void | Promise<void>
-//   Accepts both synchronous and async handlers.
+// Metrics are now grouped by analysis type (Univariate / Multivariate).
+// Unimplemented metrics (implemented: false) are shown but disabled — visible
+// as MVP roadmap items but cannot be sent to the backend.
 
 import { useMemo, useState } from "react";
 import PageSection from "../components/ui/PageSection";
@@ -23,10 +15,47 @@ import SectionCard from "../components/ui/SectionCard";
 import SummaryCard from "../components/ui/SummaryCard";
 import PrimaryButton from "../components/ui/PrimaryButton";
 import MetricBadgeList from "../components/ui/MetricBadgeList";
-import type { EvaluationConfig, EvaluationMetric, MetricDefinition, SharedPageProps } from "../types/contracts";
+import type {
+  EvaluationConfig, EvaluationMetric, MetricDefinition,
+  MetricGroup, MetricSubgroup, SharedPageProps,
+} from "../types/contracts";
 import { availableMetrics } from "../services/evaluationService";
+import { getVariableDisplayName } from "../utils/variableNames";
 import EmptyState from "../components/ui/EmptyState";
 import StatusBadge from "../components/ui/StatusBadge";
+
+// ── Metric grouping helpers ───────────────────────────────────────────────────
+
+// Returns all metrics that belong to a specific group + subgroup.
+// Only implemented metrics are shown. Optional and unimplemented (coming soon) are hidden.
+function metricsBySubgroup(group: MetricGroup, subgroup: MetricSubgroup): MetricDefinition[] {
+  return availableMetrics.filter(
+    (m) =>
+      m.group === group &&
+      m.subgroup === subgroup &&
+      m.priority !== "Optional" &&
+      m.implemented !== false
+  );
+}
+
+// Priority badge colour: Core=green, Recommended=blue, Optional=grey
+function priorityTone(priority?: string) {
+  if (priority === "Core")        return "success" as const;
+  if (priority === "Recommended") return "info"    as const;
+  return "warning" as const;
+}
+
+// Structure that drives the grouped metric UI — order matters for display
+const METRIC_GROUPS: { group: MetricGroup; subgroups: MetricSubgroup[] }[] = [
+  {
+    group: "Univariate",
+    subgroups: ["Numerical", "Categorical"],
+  },
+  {
+    group: "Multivariate",
+    subgroups: ["Numerical–Numerical", "Categorical–Categorical", "Mixed"],
+  },
+];
 
 // Column groups for diabetic_data.csv — encounter_id and patient_nbr are omitted (ID columns should not be evaluated)
 // Static for prototype; backend API will provide groupings in production.
@@ -133,6 +162,54 @@ export default function SetupPage({
     }));
   };
 
+  // Select only metrics that are Core priority AND already implemented in the backend
+  const selectAllCoreMetrics = () => {
+    const coreKeys = availableMetrics
+      .filter((m) => m.priority === "Core" && m.implemented !== false)
+      .map((m) => m.key);
+    setConfig((current) => ({ ...current, selectedMetrics: coreKeys }));
+  };
+
+  // Clear all selected metrics
+  const clearAllMetrics = () => {
+    setConfig((current) => ({ ...current, selectedMetrics: [] }));
+  };
+
+  // Set or clear a user type override for one column.
+  // If the user picks the same type as the backend inferred, remove the override (no change needed).
+  const setTypeOverride = (col: string, newType: "numerical" | "categorical") => {
+    const inferredType = validationSummary.availableColumns.find(
+      (c) => c.columnName === col
+    )?.dataType;
+
+    setConfig((current) => {
+      const overrides = { ...current.columnTypeOverrides };
+      if (newType === inferredType) {
+        delete overrides[col]; // same as inferred — no need to store
+      } else {
+        overrides[col] = newType;
+      }
+      return { ...current, columnTypeOverrides: overrides };
+    });
+  };
+
+  // Reset one column's type back to backend inference
+  const resetTypeOverride = (col: string) => {
+    setConfig((current) => {
+      const overrides = { ...current.columnTypeOverrides };
+      delete overrides[col];
+      return { ...current, columnTypeOverrides: overrides };
+    });
+  };
+
+  // Count selected implemented metrics in a given top-level group
+  const countSelectedInGroup = (group: MetricGroup) =>
+    availableMetrics.filter(
+      (m) => m.group === group &&
+             m.implemented !== false &&
+             config.selectedMetrics.includes(m.key)
+    ).length;
+
   // Search box value for filtering column chips
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -200,7 +277,6 @@ export default function SetupPage({
                 <div className="variable-chip-grid">
                   {cols.map((columnName) => {
                     const isSelected = config.selectedColumns.includes(columnName);
-                    // Disable unselected chips when the limit is reached
                     const isDisabled = !isSelected && config.selectedColumns.length >= MAX_VARIABLES;
                     return (
                       <button
@@ -209,8 +285,9 @@ export default function SetupPage({
                         className={`variable-chip ${isSelected ? "selected" : ""} ${isDisabled ? "disabled" : ""}`}
                         onClick={() => !isDisabled && toggleVariable(columnName)}
                         disabled={isDisabled}
+                        title={columnName}
                       >
-                        {columnName}
+                        {getVariableDisplayName(columnName)}
                       </button>
                     );
                   })}
@@ -221,55 +298,205 @@ export default function SetupPage({
         </SectionCard>
       </PageSection>
 
-      {/* Row 2: metric selection + run summary side by side */}
-      <div className="two-column-grid">
-        {/* Left: metric checkboxes */}
+      {/* Row 2: variable type review — only shown when at least one variable is selected */}
+      {config.selectedColumns.length > 0 && (
         <SectionCard
-          title="Metric selection"
-          subtitle="Select the statistical methods to apply. Each metric is labelled by the column type it applies to."
+          title="Variable type review"
+          subtitle="The backend has inferred a type for each selected variable. Correct any that look wrong — this affects which metrics are applied."
         >
-          <div className="metric-selection-grid">
-            {availableMetrics.map((metric: MetricDefinition) => {
-              const isSelected = config.selectedMetrics.includes(metric.key);
+          <div className="type-review-table">
+            {/* Header row — stays fixed, does not scroll */}
+            <div className="type-review-header">
+              <span>Variable</span>
+              <span>Raw column name</span>
+              <span>Inferred type</span>
+              <span>Use type</span>
+              <span></span>
+            </div>
+
+            {/* Data rows — scrollable, shows 6 rows at a time */}
+            <div className="type-review-rows">
+            {config.selectedColumns.map((col) => {
+              const inferredType =
+                validationSummary.availableColumns.find((c) => c.columnName === col)?.dataType ?? "unknown";
+
+              // Only allow overriding columns the backend actually typed as numerical or categorical
+              const canOverride = inferredType === "numerical" || inferredType === "categorical";
+
+              const isOverridden = col in config.columnTypeOverrides;
+              const currentType = isOverridden
+                ? config.columnTypeOverrides[col]
+                : inferredType;
+
               return (
-                <label
-                  key={metric.key}
-                  className={`metric-option ${isSelected ? "selected" : ""}`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={() => toggleMetric(metric.key)}
-                  />
-                  <div>
-                    <div className="metric-label-row">
-                      <strong>{metric.label}</strong>
-                      <StatusBadge tone={
-                        metric.appliesTo === "numerical"   ? "info"    :
-                        metric.appliesTo === "categorical" ? "success" :
-                        metric.appliesTo === "cross_type"  ? "danger"  : "warning"
-                      }>
-                        {metric.appliesTo}
-                      </StatusBadge>
-                    </div>
-                    <p>{metric.description}</p>
-                  </div>
-                </label>
+                <div key={col} className={`type-review-row${isOverridden ? " overridden" : ""}`}>
+                  {/* Display name */}
+                  <span className="type-review-display">{getVariableDisplayName(col)}</span>
+
+                  {/* Raw column name */}
+                  <span className="type-review-raw">{col}</span>
+
+                  {/* Inferred type badge */}
+                  <StatusBadge tone={
+                    inferredType === "numerical"   ? "info"    :
+                    inferredType === "categorical" ? "success" : "warning"
+                  }>
+                    {inferredType}
+                  </StatusBadge>
+
+                  {/* Type selector dropdown — disabled for datetime / text / unknown */}
+                  {canOverride ? (
+                    <select
+                      className={`type-review-select${isOverridden ? " changed" : ""}`}
+                      value={currentType as string}
+                      onChange={(e) =>
+                        setTypeOverride(col, e.target.value as "numerical" | "categorical")
+                      }
+                    >
+                      <option value="numerical">numerical</option>
+                      <option value="categorical">categorical</option>
+                    </select>
+                  ) : (
+                    <span className="type-review-na">—</span>
+                  )}
+
+                  {/* Reset button — only shown when overridden */}
+                  {isOverridden ? (
+                    <button
+                      type="button"
+                      className="variable-group-action"
+                      onClick={() => resetTypeOverride(col)}
+                    >
+                      Reset
+                    </button>
+                  ) : (
+                    <span />
+                  )}
+                </div>
               );
             })}
+            </div> {/* end type-review-rows */}
           </div>
+
+          {/* Summary of active overrides */}
+          {Object.keys(config.columnTypeOverrides).length > 0 && (
+            <p className="type-review-summary">
+              {Object.keys(config.columnTypeOverrides).length} override(s) active.{" "}
+              <button
+                type="button"
+                className="variable-group-action"
+                onClick={() => setConfig((c) => ({ ...c, columnTypeOverrides: {} }))}
+              >
+                Reset all
+              </button>
+            </p>
+          )}
+        </SectionCard>
+      )}
+
+      {/* Row 3: metric selection + run summary side by side */}
+      <div className="two-column-grid">
+
+        {/* Left: grouped metric checkboxes */}
+        <SectionCard
+          title="Metric selection"
+          subtitle="Metrics are grouped by analysis type to make the evaluation easier to understand."
+        >
+          {/* Top action bar */}
+          <div className="metric-header-actions">
+            <button
+              type="button"
+              className="variable-group-action"
+              onClick={selectAllCoreMetrics}
+            >
+              Select all core metrics
+            </button>
+            <button
+              type="button"
+              className="variable-group-action"
+              onClick={clearAllMetrics}
+            >
+              Clear all
+            </button>
+          </div>
+
+          {/* Render each top-level group (Univariate / Multivariate) */}
+          {METRIC_GROUPS.map(({ group, subgroups }) => (
+            <div key={group} className="metric-group-section">
+
+              {/* Group heading e.g. "Univariate Analysis" */}
+              <div className="metric-group-heading">{group} Analysis</div>
+
+              {/* Render each subgroup inside the group */}
+              {subgroups.map((subgroup) => {
+                const metrics = metricsBySubgroup(group, subgroup);
+                return (
+                  <div key={subgroup} className="metric-subgroup-section">
+
+                    {/* Subgroup label e.g. "Numerical Metrics" */}
+                    <div className="metric-subgroup-label">{subgroup} Metrics</div>
+
+                    {/* If no implemented metrics yet, show a placeholder */}
+                    {metrics.length === 0 && (
+                      <p className="metric-subgroup-placeholder">
+                        Metrics for this group are planned for a future release.
+                      </p>
+                    )}
+
+                    <div className="metric-option-list">
+                      {metrics.map((metric: MetricDefinition) => {
+                        const isDisabled = metric.implemented === false;
+                        const isSelected = !isDisabled && config.selectedMetrics.includes(metric.key);
+                        return (
+                          <label
+                            key={metric.key}
+                            className={[
+                              "metric-option",
+                              isSelected  ? "selected"  : "",
+                              isDisabled  ? "disabled"  : "",
+                            ].join(" ").trim()}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              disabled={isDisabled}
+                              onChange={() => !isDisabled && toggleMetric(metric.key)}
+                            />
+                            <div className="metric-option-body">
+                              <div className="metric-label-row">
+                                <strong>{metric.label}</strong>
+                                <div className="metric-badge-group">
+                                </div>
+                              </div>
+                              <p className="metric-description">{metric.description}</p>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
         </SectionCard>
 
-        {/* Right: live run summary so users can confirm their selection */}
+        {/* Right: live run summary — now shows count per group */}
         <SectionCard
           title="Run summary"
           subtitle="Live preview of your current selection."
         >
           <div className="stacked-summary">
+            {/* Per-group metric counts */}
             <SummaryCard
-              label="Selected metrics"
-              value={config.selectedMetrics.length}
-              helper="Statistical methods to run"
+              label="Univariate metrics selected"
+              value={countSelectedInGroup("Univariate")}
+              helper="Numerical + Categorical"
+            />
+            <SummaryCard
+              label="Multivariate metrics selected"
+              value={countSelectedInGroup("Multivariate")}
+              helper="Numerical–Numerical, Categorical–Categorical, Mixed"
             />
             <SummaryCard
               label="Selected variables"
@@ -282,11 +509,16 @@ export default function SetupPage({
               helper={`${validationSummary.realDataset.rowCount.toLocaleString()} rows • ${validationSummary.matchedColumnCount} columns matched`}
             />
           </div>
+          {/* Badge list of currently selected metric labels */}
           <div className="spacer-top">
             <MetricBadgeList
-              items={config.selectedMetrics.map(
-                (metric) => availableMetrics.find((item) => item.key === metric)?.label ?? metric
-              )}
+              items={config.selectedMetrics
+                .filter((key) =>
+                  availableMetrics.find((m) => m.key === key)?.implemented !== false
+                )
+                .map(
+                  (key) => availableMetrics.find((m) => m.key === key)?.label ?? key
+                )}
             />
           </div>
         </SectionCard>
