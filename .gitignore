@@ -220,3 +220,7 @@ data/
 uploads/
 *.csv
 *.parquet
+*.zip
+/frontend/screenshots
+/testResult
+/datasets/synthetic dataset
