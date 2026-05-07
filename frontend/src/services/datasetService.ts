@@ -12,8 +12,8 @@
 //
 // Mock data is preserved and never deleted — it is always the fallback when the backend is unavailable.
 
-import { mockDatasets } from "../mocks/datasets";
-import { mockValidationSummary } from "../mocks/validation";
+// import { mockDatasets } from "../mocks/datasets";           // mock data — disabled for production
+// import { mockValidationSummary } from "../mocks/validation"; // mock data — disabled for production
 import type { UploadFilesInput, UploadedDatasets, ValidationSummary } from "../types/contracts";
 import { USE_REAL_API, apiUpload, apiPost } from "./apiClient";
 
@@ -38,33 +38,17 @@ export async function uploadDatasets(files: UploadFilesInput): Promise<UploadedD
     return apiUpload<UploadedDatasets>("/datasets/upload", form);
   }
 
-  // --- mock fallback (original behaviour, unchanged) ---
-  const now = new Date().toISOString(); // ISO 8601 timestamp, e.g. "2026-04-08T10:30:00.000Z"
-  return Promise.resolve({
-    realDataset: mockDatasets.realDataset
-      ? {
-          // Why spread (...mockDatasets.realDataset)?
-          //   We want to keep all the mock fields (id, role, status, etc.) but
-          //   override just the file name and size with what the user actually selected.
-          //   Spread copies every field first, then the fields below overwrite the ones we care about.
-          ...mockDatasets.realDataset,
-
-          // ?? (nullish coalescing): use the user's actual file value if it exists,
-          // otherwise fall back to the mock value.
-          fileName: files.realFile?.name ?? mockDatasets.realDataset.fileName,
-          sizeBytes: files.realFile?.size ?? mockDatasets.realDataset.sizeBytes,
-          uploadedAt: now,
-        }
-      : null,
-    syntheticDataset: mockDatasets.syntheticDataset
-      ? {
-          ...mockDatasets.syntheticDataset,
-          fileName: files.syntheticFile?.name ?? mockDatasets.syntheticDataset.fileName,
-          sizeBytes: files.syntheticFile?.size ?? mockDatasets.syntheticDataset.sizeBytes,
-          uploadedAt: now,
-        }
-      : null,
-  });
+  // --- mock fallback — disabled for production ---
+  // const now = new Date().toISOString();
+  // return Promise.resolve({
+  //   realDataset: mockDatasets.realDataset
+  //     ? { ...mockDatasets.realDataset, fileName: files.realFile?.name ?? mockDatasets.realDataset.fileName, sizeBytes: files.realFile?.size ?? mockDatasets.realDataset.sizeBytes, uploadedAt: now }
+  //     : null,
+  //   syntheticDataset: mockDatasets.syntheticDataset
+  //     ? { ...mockDatasets.syntheticDataset, fileName: files.syntheticFile?.name ?? mockDatasets.syntheticDataset.fileName, sizeBytes: files.syntheticFile?.size ?? mockDatasets.syntheticDataset.sizeBytes, uploadedAt: now }
+  //     : null,
+  // });
+  throw new Error("Both CSV files are required for upload.");
 }
 
 
@@ -89,6 +73,7 @@ export async function getValidationSummary(
     // Send both IDs as a JSON body. The backend looks up the files by these IDs.
     return apiPost<ValidationSummary>("/datasets/validate", datasetIds);
   }
-  // Promise.resolve wraps a plain value in a Promise so the return type stays consistent.
-  return Promise.resolve(mockValidationSummary);
+  // --- mock fallback — disabled for production ---
+  // return Promise.resolve(mockValidationSummary);
+  throw new Error("Dataset IDs are required for validation.");
 }

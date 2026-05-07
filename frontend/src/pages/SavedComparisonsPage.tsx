@@ -1,22 +1,24 @@
 // SavedComparisonsPage.tsx — Step 5: saved comparison runs
 //
-// Displays all runs the user has saved:
-//   - A table of runs (timestamp, dataset names, score, status)
-//   - Export placeholder buttons (feature deferred to a later stage)
-//
-// This is the simplest page:
-//   - No local state
-//   - Reads only from savedComparisons prop
-//   - Guard: if no runs exist, shows EmptyState pointing to the Results page
+// Displays all runs the user has saved.
+// Each row has a "View" button that loads the full result and navigates to RunDetailPage.
 
 import PageSection from "../components/ui/PageSection";
 import SectionCard from "../components/ui/SectionCard";
-import DataTable from "../components/ui/DataTable";
 import PrimaryButton from "../components/ui/PrimaryButton";
+import StatusBadge from "../components/ui/StatusBadge";
 import EmptyState from "../components/ui/EmptyState";
-import type { SavedComparison, SharedPageProps } from "../types/contracts";
+import type { SavedComparison, SharedPageProps, StatusTone } from "../types/contracts";
 
-export default function SavedComparisonsPage({ savedComparisons, goToPage }: SharedPageProps) {
+export default function SavedComparisonsPage({
+  savedComparisons,
+  goToPage,
+  onViewRunDetail,
+  isLoadingRunDetail,
+}: SharedPageProps & {
+  onViewRunDetail: (comparison: SavedComparison) => void;
+  isLoadingRunDetail?: boolean;
+}) {
   // Guard: no saved runs yet
   if (!savedComparisons || savedComparisons.length === 0) {
     return (
@@ -29,46 +31,66 @@ export default function SavedComparisonsPage({ savedComparisons, goToPage }: Sha
     );
   }
 
-  // Column definitions for the runs table
-  const columns = [
-    { key: "runName",                label: "Run Name"          },
-    { key: "createdAtLabel",         label: "Created"           },
-    { key: "realDatasetName",        label: "Real Dataset"      },
-    { key: "syntheticDatasetName",   label: "Synthetic Dataset" },
-    { key: "overallSimilarityScore", label: "Overall Score"     },
-    {
-      key: "status",
-      label: "Status",
-      type: "badge" as const,
-      getTone: () => "success" as const, // all records are "completed" — green
-    },
-  ];
+  function scoreTone(score: number): StatusTone {
+    if (score >= 0.85) return "success";
+    if (score >= 0.70) return "warning";
+    return "danger";
+  }
 
   return (
     <div className="page-stack">
-      {/* Saved runs table */}
       <PageSection
         title="Saved comparisons"
-        description="A simplified history page for the prototype. Export can stay as a basic placeholder at this stage."
+        description="Click View on any run to open the full report. Export PDF is available from the detail page."
       >
-        <SectionCard
-          title="Saved runs"
-          subtitle="This table is enough to show that previous comparisons can be reopened and exported later."
-        >
-          <DataTable<SavedComparison> columns={columns} rows={savedComparisons} />
+        <SectionCard title="Saved runs">
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Run Name</th>
+                  <th>Created</th>
+                  <th>Real Dataset</th>
+                  <th>Synthetic Dataset</th>
+                  <th>Overall Score</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {savedComparisons.map((run) => (
+                  <tr key={run.id}>
+                    <td>{run.runName}</td>
+                    <td>{run.createdAtLabel}</td>
+                    <td>{run.realDatasetName}</td>
+                    <td>{run.syntheticDatasetName}</td>
+                    <td>
+                      <StatusBadge tone={scoreTone(run.overallSimilarityScore)}>
+                        {run.overallSimilarityScore.toFixed(2)}
+                      </StatusBadge>
+                    </td>
+                    <td>
+                      <StatusBadge tone={run.status === "completed" ? "success" : run.status === "failed" ? "danger" : "info"}>
+                        {run.status}
+                      </StatusBadge>
+                    </td>
+                    <td>
+                      <PrimaryButton
+                        variant="secondary"
+                        onClick={() => onViewRunDetail(run)}
+                        disabled={isLoadingRunDetail}
+                      >
+                        {isLoadingRunDetail ? "Loading..." : "View"}
+                      </PrimaryButton>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
         </SectionCard>
       </PageSection>
-
-      {/* Export placeholder — buttons are visible but not functional */}
-      <SectionCard
-        title="Prototype export placeholder"
-        subtitle="The export concept is visible here, but the actual document generation can wait until a later stage."
-      >
-        <div className="action-column action-row-on-desktop">
-          <PrimaryButton variant="secondary">Export PDF Summary</PrimaryButton>
-          <PrimaryButton variant="ghost">View Run Details</PrimaryButton>
-        </div>
-      </SectionCard>
 
       {/* Page footer actions */}
       <div className="page-actions">

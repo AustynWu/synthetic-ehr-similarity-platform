@@ -13,7 +13,7 @@ import type { ReactNode, MouseEventHandler } from "react";
 
 // ── Page keys ──────────────────────────────────────────────
 // The five valid page identifiers. TypeScript will catch typos.
-export type PageKey = "upload" | "validation" | "setup" | "results" | "saved";
+export type PageKey = "upload" | "validation" | "setup" | "results" | "saved" | "runDetail";
 
 // ── Dataset types ──────────────────────────────────────────
 
@@ -230,7 +230,8 @@ export interface EvaluationSummary {
   numericalSimilarityScore: number | null;    // null if no numerical metric was selected
   categoricalSimilarityScore: number | null;  // null if no categorical metric was selected
   relationshipSimilarityScore: number | null; // null if correlation_difference was not selected
-  variablesAnalyzed: number;
+  variablesAnalyzed: number;   // variables that produced at least one score
+  variablesSelected: number;   // variables the user selected on Setup
   metricsUsed: number;
 }
 
@@ -246,10 +247,10 @@ export interface AnalysisContext {
 export interface VariableRankingItem {
   variable: string;
   type: "numerical" | "categorical";
-  importanceScore: number;          // 0-1, backend-computed clinical relevance
   similarityScore: number;          // 0-1, how closely real and synthetic match
   status: "good" | "moderate" | "poor";
   topContributingMetric: EvaluationMetric; // metric with largest gap for this variable
+  realMissingRate: number;          // 0-100, missing % in real dataset
 }
 
 // One cell in the metric matrix heatmap (sparse: only applicable metric-variable pairs)
@@ -334,7 +335,7 @@ export interface EvaluationResult {
   summary: EvaluationSummary;
   analysisContext: AnalysisContext;
   reminders: string[];                             // auto-generated sentences explaining the run
-  variableRanking: VariableRankingItem[];          // sorted by importanceScore descending
+  variableRanking: VariableRankingItem[];          // sorted by similarityScore ascending (worst first)
   metricMatrix: MetricMatrix;
   detailViews: Record<string, VariableDetailView>; // keyed by variable name
   insights: string[];

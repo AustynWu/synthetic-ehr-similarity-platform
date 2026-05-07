@@ -11,7 +11,7 @@
 //
 // Mock data is preserved and never deleted — it is always the fallback.
 
-import { mockEvaluationResult } from "../mocks/results";
+// import { mockEvaluationResult } from "../mocks/results"; // mock data — disabled for production
 import type { EvaluationConfig, EvaluationResult, MetricDefinition } from "../types/contracts";
 import { USE_REAL_API, apiGet, apiPost } from "./apiClient";
 
@@ -310,12 +310,7 @@ export async function runEvaluation(
     });
   }
 
-  // --- mock fallback (original behaviour, unchanged) ---
-  // Why spread (...mockEvaluationResult)?
-  //   We want to attach the user's actual config (which columns they selected)
-  //   to the mock result for display purposes, without changing any other mock fields.
-  return Promise.resolve({
-    ...mockEvaluationResult,
-    appliedConfig: config,
-  });
+  // --- mock fallback — disabled for production ---
+  // return Promise.resolve({ ...mockEvaluationResult, appliedConfig: config });
+  throw new Error("Dataset IDs are required to run evaluation.");
 }

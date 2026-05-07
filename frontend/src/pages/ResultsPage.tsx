@@ -66,7 +66,11 @@ export default function ResultsPage({
   evaluationResult,
   goToPage,
   onSaveComparison,
-}: SharedPageProps & { onSaveComparison: () => void }) {
+  isLoading,
+}: SharedPageProps & {
+  onSaveComparison: () => void;
+  isLoading?: boolean;
+}) {
 
   // Hooks must be declared unconditionally — before any early return
   const [selectedVariable, setSelectedVariable] = useState<string>("");
@@ -147,13 +151,25 @@ export default function ResultsPage({
           <SummaryCard
             label="Relationship similarity"
             value={summary.relationshipSimilarityScore !== null ? summary.relationshipSimilarityScore.toFixed(2) : "N/A"}
-            helper={summary.relationshipSimilarityScore !== null ? "Correlation difference across variables" : "Correlation metric not selected"}
+            helper={
+              summary.relationshipSimilarityScore === null
+                ? "Correlation metric not selected"
+                : summary.relationshipSimilarityScore >= 0.85
+                ? "Correlation structure is well preserved across numerical variables"
+                : summary.relationshipSimilarityScore >= 0.70
+                ? "Some correlation patterns have shifted in the synthetic data"
+                : "Significant correlation degradation — variable relationships differ from real"
+            }
             tone={scoreTone(summary.relationshipSimilarityScore)}
           />
           <SummaryCard
             label="Variables analysed"
-            value={summary.variablesAnalyzed}
-            helper="Selected on the Setup page"
+            value={`${summary.variablesAnalyzed} / ${summary.variablesSelected ?? summary.variablesAnalyzed}`}
+            helper={
+              summary.variablesAnalyzed < (summary.variablesSelected ?? summary.variablesAnalyzed)
+                ? `${(summary.variablesSelected ?? summary.variablesAnalyzed) - summary.variablesAnalyzed} variable(s) had no applicable metric — check metric selection`
+                : "All selected variables were scored"
+            }
           />
           <SummaryCard
             label="Metrics used"
@@ -273,6 +289,11 @@ export default function ResultsPage({
                 >
                   <td>
                     <strong title={row.variable}>{getVariableDisplayName(row.variable)}</strong>
+                    {row.realMissingRate >= 50 && (
+                      <span className="status-badge warning missing-rate-badge">
+                        ⚠ {row.realMissingRate}% missing
+                      </span>
+                    )}
                   </td>
                   <td>
                     <StatusBadge tone={row.type === "numerical" ? "info" : "success"}>
@@ -371,12 +392,12 @@ export default function ResultsPage({
 
       {/* ── Multivariate placeholders ──────────────────────────────────────── */}
 
-      {/* Numerical–Numerical */}
-      <SectionCard
-        title="Numerical–Numerical: Correlation Comparison"
-        subtitle="Pearson r for variable pairs — top pairs by largest difference shown first."
-      >
-        {mv?.topCorrelationPairs?.length ? (
+      {/* Numerical–Numerical — only shown when backend returns data */}
+      {mv?.topCorrelationPairs?.length ? (
+        <SectionCard
+          title="Numerical–Numerical: Correlation Comparison"
+          subtitle="Pearson r for variable pairs — top pairs by largest difference shown first."
+        >
           <table className="data-table">
             <thead>
               <tr>
@@ -401,23 +422,15 @@ export default function ResultsPage({
               ))}
             </tbody>
           </table>
-        ) : (
-          <div className="multivariate-placeholder">
-            <span className="mvp-badge">MVP — pending API integration</span>
-            <p className="muted-copy">
-              Backend not yet returning correlation pair data.
-              Calculation via <code>correlation_difference</code> metric is planned.
-            </p>
-          </div>
-        )}
-      </SectionCard>
+        </SectionCard>
+      ) : null}
 
-      {/* Categorical–Categorical */}
-      <SectionCard
-        title="Categorical–Categorical: Cramér's V Comparison"
-        subtitle="Association strength for categorical variable pairs — top pairs by largest difference shown first."
-      >
-        {mv?.topCramersVPairs?.length ? (
+      {/* Categorical–Categorical — only shown when backend returns data */}
+      {mv?.topCramersVPairs?.length ? (
+        <SectionCard
+          title="Categorical–Categorical: Cramér's V Comparison"
+          subtitle="Association strength for categorical variable pairs — top pairs by largest difference shown first."
+        >
           <table className="data-table">
             <thead>
               <tr>
@@ -442,23 +455,15 @@ export default function ResultsPage({
               ))}
             </tbody>
           </table>
-        ) : (
-          <div className="multivariate-placeholder">
-            <span className="mvp-badge">MVP — pending API integration</span>
-            <p className="muted-copy">
-              Backend not yet returning Cramér's V pair data.
-              Calculation via <code>cramers_v_comparison</code> metric is planned.
-            </p>
-          </div>
-        )}
-      </SectionCard>
+        </SectionCard>
+      ) : null}
 
-      {/* Mixed */}
-      <SectionCard
-        title="Mixed Analysis: Group-wise Summary"
-        subtitle="Mean of numerical variable per category group — top rows by largest difference shown first."
-      >
-        {mv?.topGroupwiseRows?.length ? (
+      {/* Mixed — only shown when backend returns data */}
+      {mv?.topGroupwiseRows?.length ? (
+        <SectionCard
+          title="Mixed Analysis: Group-wise Summary"
+          subtitle="Mean of numerical variable per category group — top rows by largest difference shown first."
+        >
           <table className="data-table">
             <thead>
               <tr>
@@ -467,30 +472,29 @@ export default function ResultsPage({
                 <th>Real mean</th>
                 <th>Synthetic mean</th>
                 <th>Difference</th>
+                <th>% Change</th>
               </tr>
             </thead>
             <tbody>
-              {mv.topGroupwiseRows.map((r, i) => (
-                <tr key={i}>
-                  <td>{getVariableDisplayName(r.numericalVariable)}</td>
-                  <td>{getVariableDisplayName(r.categoricalVariable)}: {r.groupValue}</td>
-                  <td>{r.realMean.toFixed(1)}</td>
-                  <td>{r.syntheticMean.toFixed(1)}</td>
-                  <td>{r.difference.toFixed(1)}</td>
-                </tr>
-              ))}
+              {mv.topGroupwiseRows.map((r, i) => {
+                const pct = r.realMean !== 0
+                  ? ((r.syntheticMean - r.realMean) / r.realMean * 100).toFixed(1)
+                  : null;
+                return (
+                  <tr key={i}>
+                    <td>{getVariableDisplayName(r.numericalVariable)}</td>
+                    <td>{getVariableDisplayName(r.categoricalVariable)}: {r.groupValue}</td>
+                    <td>{r.realMean.toFixed(1)}</td>
+                    <td>{r.syntheticMean.toFixed(1)}</td>
+                    <td>{r.difference.toFixed(1)}</td>
+                    <td>{pct !== null ? `${Number(pct) > 0 ? "+" : ""}${pct}%` : "—"}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
-        ) : (
-          <div className="multivariate-placeholder">
-            <span className="mvp-badge">MVP — pending API integration</span>
-            <p className="muted-copy">
-              Backend not yet returning group-wise summary data.
-              Calculation via <code>numerical_categorical_association</code> metric is planned.
-            </p>
-          </div>
-        )}
-      </SectionCard>
+        </SectionCard>
+      ) : null}
 
       {/* ── Section 6: Insights ────────────────────────────────────────────── */}
       <SectionCard
@@ -512,9 +516,11 @@ export default function ResultsPage({
         <PrimaryButton variant="secondary" onClick={() => goToPage("saved")}>
           View Saved Runs
         </PrimaryButton>
-        <PrimaryButton onClick={onSaveComparison}>
-          Save Comparison
-        </PrimaryButton>
+        <div className="page-actions-right">
+          <PrimaryButton onClick={onSaveComparison} disabled={isLoading}>
+            {isLoading ? "Saving..." : "Save Comparison"}
+          </PrimaryButton>
+        </div>
       </div>
     </div>
   );

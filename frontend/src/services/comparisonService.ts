@@ -13,18 +13,9 @@
 //
 // Mock data is preserved and never deleted — it is always the fallback.
 
-import { mockSavedComparisons } from "../mocks/comparisons";
+// import { mockSavedComparisons } from "../mocks/comparisons"; // mock data — disabled for production
 import type { EvaluationConfig, EvaluationResult, SavedComparison, UploadedDatasets } from "../types/contracts";
 import { USE_REAL_API, apiGet, apiPost } from "./apiClient";
-
-// Why let instead of const?
-//   savedRuns needs to be replaced (not just mutated) when we prepend a new run.
-//   const would prevent reassigning the variable, so we use let.
-// Why [...mockSavedComparisons]?
-//   The spread makes a shallow copy of the mock array.
-//   Without the copy, savedRuns and mockSavedComparisons would point to the same array,
-//   and adding to savedRuns would also change the original mock data (which we want to keep intact).
-let savedRuns: SavedComparison[] = [...mockSavedComparisons];
 
 
 // Returns the list of all saved comparison runs.
@@ -40,7 +31,9 @@ export async function getSavedComparisons(): Promise<SavedComparison[]> {
   if (USE_REAL_API) {
     return apiGet<SavedComparison[]>("/comparisons");
   }
-  return Promise.resolve(savedRuns);
+  // --- mock fallback — disabled for production ---
+  // return Promise.resolve(savedRuns);
+  throw new Error("Real API mode is required to fetch saved comparisons.");
 }
 
 
@@ -71,36 +64,20 @@ export async function saveCurrentComparison({
     // We do NOT send the full EvaluationResult just for the list — only the score and names.
     await apiPost("/comparisons/save", {
       evaluationResult,
-      realDatasetName: uploadedDatasets.realDataset?.fileName ?? "diabetic_data.csv",
-      syntheticDatasetName: uploadedDatasets.syntheticDataset?.fileName ?? "V1_syn.csv",
+      realDatasetName: uploadedDatasets.realDataset?.fileName ?? "unknown",
+      syntheticDatasetName: uploadedDatasets.syntheticDataset?.fileName ?? "unknown",
       metricsUsed: evaluationConfig.selectedMetrics,
     });
     // After saving, fetch the full updated list from the backend.
     return apiGet<SavedComparison[]>("/comparisons");
   }
 
-  // --- mock fallback (original behaviour, unchanged) ---
-  const now = new Date();
+  throw new Error("Real API mode is required to save comparisons.");
+}
 
-  const newRun: SavedComparison = {
-    // Why now.getTime()?
-    //   getTime() returns milliseconds since 1970 — always unique, so it works as a simple ID.
-    id: `run-${now.getTime()}`,
-    runName: `Prototype evaluation - ${uploadedDatasets.syntheticDataset?.fileName ?? "V1_syn.csv"}`,
-    createdAt: now.toISOString(),
-    createdAtLabel: now.toLocaleDateString(), // locale-formatted date, e.g. "08/04/2026"
-    realDatasetName: uploadedDatasets.realDataset?.fileName ?? "diabetic_data.csv",
-    syntheticDatasetName: uploadedDatasets.syntheticDataset?.fileName ?? "V1_syn.csv",
-    overallSimilarityScore: evaluationResult.summary.overallSimilarityScore,
-    metricsUsed: evaluationConfig.selectedMetrics,
-    status: "completed",
-  };
 
-  // Why [newRun, ...savedRuns] instead of savedRuns.push(newRun)?
-  //   push() would mutate the existing array and React might not detect the change.
-  //   Creating a new array ([newRun, ...savedRuns]) guarantees a fresh reference,
-  //   which triggers React to re-render the page correctly.
-  //   newRun is placed first so the newest run appears at the top of the list.
-  savedRuns = [newRun, ...savedRuns];
-  return savedRuns;
+// Fetch the full EvaluationResult for one saved run — used by View Run Details.
+// Real API: GET /comparisons/{runId} → backend returns the stored EvaluationResult.
+export async function getComparisonDetail(runId: string): Promise<EvaluationResult> {
+  return apiGet<EvaluationResult>(`/comparisons/${runId}`);
 }

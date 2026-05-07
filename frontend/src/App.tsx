@@ -14,20 +14,20 @@
 import { useEffect, useMemo, useState } from "react";
 
 import AppLayout from "./components/layout/AppLayout";
+import ErrorModal from "./components/ui/ErrorModal";
 
 import UploadPage from "./pages/UploadPage";
 import ValidationPage from "./pages/ValidationPage";
 import SetupPage from "./pages/SetupPage";
 import ResultsPage from "./pages/ResultsPage";
 import SavedComparisonsPage from "./pages/SavedComparisonsPage";
+import RunDetailPage from "./pages/RunDetailPage";
 
 import { navigationItems, pageTitles } from "./utils/navigation";
 
 import { uploadDatasets, getValidationSummary } from "./services/datasetService";
 import { getDefaultEvaluationConfig, runEvaluation } from "./services/evaluationService";
-import { getSavedComparisons, saveCurrentComparison } from "./services/comparisonService";
-import { USE_REAL_API } from "./services/apiClient";
-import { mockEvaluationResult } from "./mocks/results";
+import { getSavedComparisons, saveCurrentComparison, getComparisonDetail } from "./services/comparisonService";
 
 import type {
   EvaluationConfig,
@@ -61,18 +61,30 @@ export default function App() {
   );
 
   // Similarity scores produced after running evaluation.
-  // In mock mode: pre-load so Results page works immediately without running evaluation.
-  // In real API mode: starts null until the user runs evaluation on Setup page.
-  const [evaluationResult, setEvaluationResult] = useState<EvaluationResult | null>(
-    USE_REAL_API ? null : mockEvaluationResult
-  );
+  // Starts null until the user runs evaluation on the Setup page.
+  const [evaluationResult, setEvaluationResult] = useState<EvaluationResult | null>(null);
 
   // List of saved comparison runs
   const [savedComparisons, setSavedComparisons] = useState<SavedComparison[]>([]);
 
-  // Load saved comparisons once on mount.
-  // In mock mode: getSavedComparisons() returns the in-memory list (seeded with mock data).
-  // In real API mode: fetches GET /comparisons from the backend.
+  // Single modal error state — shown as an overlay for all network/evaluation failures
+  const [errorModal, setErrorModal] = useState<{ title: string; message: string } | null>(null);
+
+  // True while upload + validation is in progress — disables the button to prevent double-submit
+  const [isUploading, setIsUploading] = useState(false);
+
+  // True while evaluation is running — disables the button to prevent double-submit
+  const [isEvaluating, setIsEvaluating] = useState(false);
+
+  // True while save is in progress — disables the button to prevent double-submit
+  const [isSaving, setIsSaving] = useState(false);
+
+  // State for View Run Details — holds the selected run's full result and metadata
+  const [runDetailResult, setRunDetailResult] = useState<EvaluationResult | null>(null);
+  const [runDetailComparison, setRunDetailComparison] = useState<SavedComparison | null>(null);
+  const [isLoadingRunDetail, setIsLoadingRunDetail] = useState(false);
+
+  // Load saved comparisons once on mount — fetches GET /comparisons from the backend.
   useEffect(() => {
     getSavedComparisons().then(setSavedComparisons).catch(console.error);
   }, []);
@@ -87,7 +99,7 @@ export default function App() {
     if (evaluationResult) steps.add("results");
     if (savedComparisons.length > 0) steps.add("saved");
     return steps;
-  }, [uploadedDatasets, validationSummary, evaluationConfig, evaluationResult, savedComparisons]);
+  }, [uploadedDatasets, validationSummary, evaluationResult, savedComparisons]);
 
   // ── Event handlers ───────────────────────────────────────
   // These functions are passed to child pages so pages can notify App of changes.
@@ -96,41 +108,94 @@ export default function App() {
   // Real API: passes dataset IDs from the upload response to the validate call.
   // Mock:     IDs are undefined — getValidationSummary falls back to mock data.
   const handleUploadContinue = async (files: UploadFilesInput) => {
-    const datasets = await uploadDatasets(files);
-    setUploadedDatasets(datasets);
+    setIsUploading(true);
+    setEvaluationResult(null);
+    try {
+      // Step 1: send files to backend, get back dataset IDs
+      let datasets: UploadedDatasets;
+      try {
+        datasets = await uploadDatasets(files);
+      } catch (err) {
+        throw new Error(
+          `File upload failed: ${err instanceof Error ? err.message : "Please check the backend is running."}`
+        );
+      }
+      setUploadedDatasets(datasets);
 
-    const datasetIds =
-      datasets.realDataset?.id && datasets.syntheticDataset?.id
-        ? { realDatasetId: datasets.realDataset.id, syntheticDatasetId: datasets.syntheticDataset.id }
-        : undefined;
+      const realId = datasets.realDataset?.id;
+      const synId  = datasets.syntheticDataset?.id;
+      if (!realId || !synId) {
+        throw new Error("Upload succeeded but dataset IDs were not returned. Please try again.");
+      }
+      const datasetIds = { realDatasetId: realId, syntheticDatasetId: synId };
 
-    const summary = await getValidationSummary(datasetIds);
-    setValidationSummary(summary);
-    setCurrentPage("validation");
+      // Step 2: validate schema using the IDs from step 1
+      let summary: ValidationSummary;
+      try {
+        summary = await getValidationSummary(datasetIds);
+      } catch (err) {
+        throw new Error(
+          `Schema validation failed: ${err instanceof Error ? err.message : "Files were uploaded but could not be validated."}`
+        );
+      }
+      setValidationSummary(summary);
+      setCurrentPage("validation");
+    } catch (err) {
+      setErrorModal({ title: "Upload Failed", message: err instanceof Error ? err.message : "An unexpected error occurred." });
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   // Called when user clicks "Run Evaluation" on Setup page.
-  // Real API: passes dataset IDs so the backend knows which files to analyse.
-  // Mock:     IDs are undefined — runEvaluation falls back to mock data.
   const handleRunEvaluation = async (config: EvaluationConfig) => {
-    setEvaluationConfig(config);
+    setIsEvaluating(true);
+    try {
+      setEvaluationConfig(config);
 
-    const datasetIds =
-      uploadedDatasets.realDataset?.id && uploadedDatasets.syntheticDataset?.id
-        ? { realDatasetId: uploadedDatasets.realDataset.id, syntheticDatasetId: uploadedDatasets.syntheticDataset.id }
-        : undefined;
+      const datasetIds =
+        uploadedDatasets.realDataset?.id && uploadedDatasets.syntheticDataset?.id
+          ? { realDatasetId: uploadedDatasets.realDataset.id, syntheticDatasetId: uploadedDatasets.syntheticDataset.id }
+          : undefined;
 
-    const result = await runEvaluation(config, datasetIds);
-    setEvaluationResult(result);
-    setCurrentPage("results");
+      const result = await runEvaluation(config, datasetIds);
+      setEvaluationResult(result);
+      setCurrentPage("results");
+    } catch (err) {
+      setErrorModal({ title: "Evaluation Failed", message: err instanceof Error ? err.message : "Evaluation failed. Please check the backend is running." });
+    } finally {
+      setIsEvaluating(false);
+    }
+  };
+
+  // Called when user clicks "View" on a saved run row in SavedComparisonsPage
+  const handleViewRunDetail = async (comparison: SavedComparison) => {
+    setIsLoadingRunDetail(true);
+    try {
+      const result = await getComparisonDetail(comparison.id);
+      setRunDetailResult(result);
+      setRunDetailComparison(comparison);
+      setCurrentPage("runDetail");
+    } catch (err) {
+      setErrorModal({ title: "Load Failed", message: err instanceof Error ? err.message : "Failed to load run details." });
+    } finally {
+      setIsLoadingRunDetail(false);
+    }
   };
 
   // Called when user clicks "Save Comparison" on Results page
   const handleSaveComparison = async () => {
     if (!evaluationResult) return;
-    const updated = await saveCurrentComparison({ evaluationConfig, evaluationResult, uploadedDatasets });
-    setSavedComparisons(updated);
-    setCurrentPage("saved");
+    setIsSaving(true);
+    try {
+      const updated = await saveCurrentComparison({ evaluationConfig, evaluationResult, uploadedDatasets });
+      setSavedComparisons(updated);
+      setCurrentPage("saved");
+    } catch (err) {
+      setErrorModal({ title: "Save Failed", message: err instanceof Error ? err.message : "Save failed. Please check the backend is running." });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // ── Shared props passed to every page ────────────────────
@@ -148,15 +213,19 @@ export default function App() {
   const renderPage = () => {
     switch (currentPage) {
       case "upload":
-        return <UploadPage {...sharedPageProps} onContinue={handleUploadContinue} />;
+        return <UploadPage {...sharedPageProps} onContinue={handleUploadContinue} isLoading={isUploading} />;
       case "validation":
         return <ValidationPage {...sharedPageProps} />;
       case "setup":
-        return <SetupPage {...sharedPageProps} onRunEvaluation={handleRunEvaluation} />;
+        return <SetupPage {...sharedPageProps} onRunEvaluation={handleRunEvaluation} isLoading={isEvaluating} />;
       case "results":
-        return <ResultsPage {...sharedPageProps} onSaveComparison={handleSaveComparison} />;
+        return <ResultsPage {...sharedPageProps} onSaveComparison={handleSaveComparison} isLoading={isSaving} />;
       case "saved":
-        return <SavedComparisonsPage {...sharedPageProps} />;
+        return <SavedComparisonsPage {...sharedPageProps} onViewRunDetail={handleViewRunDetail} isLoadingRunDetail={isLoadingRunDetail} />;
+      case "runDetail":
+        return runDetailResult && runDetailComparison
+          ? <RunDetailPage evaluationResult={runDetailResult} savedComparison={runDetailComparison} goToPage={setCurrentPage} />
+          : <SavedComparisonsPage {...sharedPageProps} onViewRunDetail={handleViewRunDetail} isLoadingRunDetail={isLoadingRunDetail} />;
       default:
         return <UploadPage {...sharedPageProps} onContinue={handleUploadContinue} />;
     }
@@ -172,6 +241,13 @@ export default function App() {
       completedSteps={completedSteps}
     >
       {renderPage()}
+      {errorModal && (
+        <ErrorModal
+          title={errorModal.title}
+          message={errorModal.message}
+          onClose={() => setErrorModal(null)}
+        />
+      )}
     </AppLayout>
   );
 }

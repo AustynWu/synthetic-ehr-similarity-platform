@@ -30,7 +30,11 @@ import type { SharedPageProps, UploadFilesInput } from "../types/contracts";
 export default function UploadPage({
   uploadedDatasets,
   onContinue,
-}: SharedPageProps & { onContinue: (files: UploadFilesInput) => void | Promise<void> }) {
+  isLoading,
+}: SharedPageProps & {
+  onContinue: (files: UploadFilesInput) => void | Promise<void>;
+  isLoading?: boolean;
+}) {
   // Track the two selected files (null = not yet chosen)
   const [realFile, setRealFile] = useState<File | null>(null);
   const [syntheticFile, setSyntheticFile] = useState<File | null>(null);
@@ -49,6 +53,11 @@ export default function UploadPage({
 
   // Both files must be selected before the continue button is enabled
   const canContinue = Boolean(realFile && syntheticFile);
+
+  // Convert bytes to a human-readable KB string
+  function formatSize(bytes: number): string {
+    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  }
 
   const handleContinue = async () => {
     if (!canContinue) return;
@@ -101,15 +110,27 @@ export default function UploadPage({
           {/* ?? — use left value if available, fall back to right */}
           <SummaryCard
             label="Real dataset"
-            value={realFile?.name ?? uploadedDatasets.realDataset?.fileName ?? "diabetic_data.csv"}
-            helper="101,766 rows • 50 columns"
+            value={realFile?.name ?? uploadedDatasets.realDataset?.fileName ?? "No file selected"}
+            helper={
+              realFile
+                ? `${formatSize(realFile.size)} selected`
+                : uploadedDatasets.realDataset
+                ? `${formatSize(uploadedDatasets.realDataset.sizeBytes)} uploaded`
+                : "Select a CSV file to begin"
+            }
             badge="Baseline"
             tone="success"
           />
           <SummaryCard
             label="Synthetic dataset"
-            value={syntheticFile?.name ?? uploadedDatasets.syntheticDataset?.fileName ?? "V1_syn.csv"}
-            helper="101,766 rows • 50 columns"
+            value={syntheticFile?.name ?? uploadedDatasets.syntheticDataset?.fileName ?? "No file selected"}
+            helper={
+              syntheticFile
+                ? `${formatSize(syntheticFile.size)} selected`
+                : uploadedDatasets.syntheticDataset
+                ? `${formatSize(uploadedDatasets.syntheticDataset.sizeBytes)} uploaded`
+                : "Select a CSV file to begin"
+            }
             badge="Supervisor file"
             tone="info"
           />
@@ -126,10 +147,20 @@ export default function UploadPage({
 
       {/* Page footer actions */}
       <div className="page-actions">
-        <PrimaryButton variant="ghost">Reset</PrimaryButton>
+        <PrimaryButton
+          variant="ghost"
+          onClick={() => {
+            setRealFile(null);
+            setSyntheticFile(null);
+            setRealFileError("");
+            setSyntheticFileError("");
+          }}
+        >
+          Reset
+        </PrimaryButton>
         {/* disabled turns the button grey and unclickable until both files are selected */}
-        <PrimaryButton onClick={handleContinue} disabled={!canContinue}>
-          Validate & Continue
+        <PrimaryButton onClick={handleContinue} disabled={!canContinue || isLoading}>
+          {isLoading ? "Uploading..." : "Validate & Continue"}
         </PrimaryButton>
       </div>
     </div>

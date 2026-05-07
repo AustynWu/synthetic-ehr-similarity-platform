@@ -20,4 +20,5 @@ export const pageTitles: Record<PageKey, string> = {
   setup:      "Evaluation Setup",
   results:    "Results Dashboard",
   saved:      "Saved Comparisons & Export",
+  runDetail:  "Run Detail Report",
 };

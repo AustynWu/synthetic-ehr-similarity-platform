@@ -37,7 +37,9 @@ export default function ValidationPage({ validationSummary, goToPage }: SharedPa
 
   // Row count difference (used for the diff banner below the dataset cards)
   const rowDiff = validationSummary.syntheticDataset.rowCount - validationSummary.realDataset.rowCount;
-  const rowDiffPct = (Math.abs(rowDiff) / validationSummary.realDataset.rowCount * 100).toFixed(1);
+  const rowDiffPct = validationSummary.realDataset.rowCount > 0
+    ? (Math.abs(rowDiff) / validationSummary.realDataset.rowCount * 100).toFixed(1)
+    : "0.0";
   // Colour: green <5%, yellow 5–20%, red >20%
   const rowDiffTone: StatusTone =
     Number(rowDiffPct) < 5 ? "success" : Number(rowDiffPct) < 20 ? "warning" : "danger";
@@ -45,6 +47,24 @@ export default function ValidationPage({ validationSummary, goToPage }: SharedPa
   // Badge colour based on missing rate: >50% red, >20% yellow, >0% blue, 0% green
   const missTone = (v: number): StatusTone =>
     v > 50 ? "danger" : v > 20 ? "warning" : v > 0 ? "info" : "success";
+
+  // Safe percentage helpers — guard against division by zero
+  const safePct = (numerator: number, denominator: number) =>
+    denominator > 0 ? ((numerator / denominator) * 100).toFixed(1) : "0.0";
+
+  const r = validationSummary.realDataset;
+  const s = validationSummary.syntheticDataset;
+  const realMissingCellPct    = safePct(r.missingValueCount,  r.rowCount * r.columnCount);
+  const realDuplicatePct      = safePct(r.duplicateRowCount,  r.rowCount);
+  const synMissingCellPct     = safePct(s.missingValueCount,  s.rowCount * s.columnCount);
+  const synDuplicatePct       = safePct(s.duplicateRowCount,  s.rowCount);
+
+  // Sort by highest missing rate (real or synthetic) so problem columns appear first.
+  const sortedSchema = [...validationSummary.schemaComparison].sort(
+    (a, b) =>
+      Math.max(b.realMissingRate, b.syntheticMissingRate) -
+      Math.max(a.realMissingRate, a.syntheticMissingRate)
+  );
 
   // Schema comparison table column definitions
   const columns: DataTableColumn<SchemaComparisonRow>[] = [
@@ -84,6 +104,20 @@ export default function ValidationPage({ validationSummary, goToPage }: SharedPa
         const diff = Math.abs(row.realMissingRate - row.syntheticMissingRate);
         const tone: StatusTone = diff > 5 ? "danger" : diff > 1 ? "warning" : "success";
         return <StatusBadge tone={tone}>{diff.toFixed(1)}%</StatusBadge>;
+      },
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (_v, row) => {
+        const map: Record<string, { tone: StatusTone; label: string }> = {
+          matched:               { tone: "success", label: "Matched" },
+          type_mismatch:         { tone: "danger",  label: "Type mismatch" },
+          missing_in_synthetic:  { tone: "warning", label: "Missing in synthetic" },
+          missing_in_real:       { tone: "warning", label: "Missing in real" },
+        };
+        const { tone, label } = map[row.status] ?? { tone: "info", label: row.status };
+        return <StatusBadge tone={tone}>{label}</StatusBadge>;
       },
     },
   ];
@@ -139,12 +173,9 @@ export default function ValidationPage({ validationSummary, goToPage }: SharedPa
               <div className="dataset-stat-row">
                 <span>Missing values</span>
                 <strong>
-                  {validationSummary.realDataset.missingValueCount.toLocaleString()}
+                  {r.missingValueCount.toLocaleString()}
                   <span className="stat-sub">
-                    ({((validationSummary.realDataset.missingValueCount /
-                        (validationSummary.realDataset.rowCount *
-                         validationSummary.realDataset.columnCount)) * 100
-                      ).toFixed(1)}% of cells)
+                    ({realMissingCellPct}% of cells)
                   </span>
                 </strong>
               </div>
@@ -153,11 +184,9 @@ export default function ValidationPage({ validationSummary, goToPage }: SharedPa
               <div className="dataset-stat-row">
                 <span>Duplicate rows</span>
                 <strong>
-                  {validationSummary.realDataset.duplicateRowCount}
+                  {r.duplicateRowCount}
                   <span className="stat-sub">
-                    ({((validationSummary.realDataset.duplicateRowCount /
-                        validationSummary.realDataset.rowCount) * 100
-                      ).toFixed(1)}% of rows)
+                    ({realDuplicatePct}% of rows)
                   </span>
                 </strong>
               </div>
@@ -195,12 +224,9 @@ export default function ValidationPage({ validationSummary, goToPage }: SharedPa
               <div className="dataset-stat-row">
                 <span>Missing values</span>
                 <strong>
-                  {validationSummary.syntheticDataset.missingValueCount.toLocaleString()}
+                  {s.missingValueCount.toLocaleString()}
                   <span className="stat-sub">
-                    ({((validationSummary.syntheticDataset.missingValueCount /
-                        (validationSummary.syntheticDataset.rowCount *
-                         validationSummary.syntheticDataset.columnCount)) * 100
-                      ).toFixed(1)}% of cells)
+                    ({synMissingCellPct}% of cells)
                   </span>
                 </strong>
               </div>
@@ -208,11 +234,9 @@ export default function ValidationPage({ validationSummary, goToPage }: SharedPa
               <div className="dataset-stat-row">
                 <span>Duplicate rows</span>
                 <strong>
-                  {validationSummary.syntheticDataset.duplicateRowCount}
+                  {s.duplicateRowCount}
                   <span className="stat-sub">
-                    ({((validationSummary.syntheticDataset.duplicateRowCount /
-                        validationSummary.syntheticDataset.rowCount) * 100
-                      ).toFixed(1)}% of rows)
+                    ({synDuplicatePct}% of rows)
                   </span>
                 </strong>
               </div>
@@ -237,7 +261,7 @@ export default function ValidationPage({ validationSummary, goToPage }: SharedPa
       >
         <DataTable<SchemaComparisonRow>
           columns={columns}
-          rows={validationSummary.schemaComparison}
+          rows={sortedSchema}
         />
       </SectionCard>
 
@@ -249,7 +273,10 @@ export default function ValidationPage({ validationSummary, goToPage }: SharedPa
         <PrimaryButton variant="ghost" onClick={() => goToPage("upload")}>
           Back to Upload
         </PrimaryButton>
-        <PrimaryButton onClick={() => goToPage("setup")}>
+        <PrimaryButton
+          onClick={() => goToPage("setup")}
+          disabled={!validationSummary.canProceed}
+        >
           Proceed to Evaluation Setup
         </PrimaryButton>
       </div>

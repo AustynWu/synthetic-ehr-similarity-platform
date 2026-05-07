@@ -93,16 +93,32 @@ export default function SetupPage({
   evaluationConfig,
   goToPage,
   onRunEvaluation,
-}: SharedPageProps & { onRunEvaluation: (config: EvaluationConfig) => void | Promise<void> }) {
+  isLoading,
+}: SharedPageProps & {
+  onRunEvaluation: (config: EvaluationConfig) => void | Promise<void>;
+  isLoading?: boolean;
+}) {
 
   // Guard: validation must be completed first
   if (!validationSummary) {
     return (
       <EmptyState
         title="Validation is required first"
-        description="Upload and validate the diabetes datasets before choosing evaluation methods."
+        description="Upload and validate the datasets before choosing evaluation methods."
         actionLabel="Go to validation"
         onAction={() => goToPage("validation")}
+      />
+    );
+  }
+
+  // Guard: datasets must be compatible (shared columns exist)
+  if (!validationSummary.canProceed) {
+    return (
+      <EmptyState
+        title="Datasets cannot be analysed"
+        description="The uploaded datasets have no shared columns. Please re-upload compatible datasets."
+        actionLabel="Go to Upload"
+        onAction={() => goToPage("upload")}
       />
     );
   }
@@ -218,6 +234,38 @@ export default function SetupPage({
     () => validationSummary.availableColumns.map((col) => col.columnName),
     [validationSummary]
   );
+
+  // Warn when selected columns have no applicable metric.
+  // e.g. user picks only numerical metrics but also selects categorical columns — those columns produce no results.
+  const mismatchWarning = useMemo(() => {
+    const hasNumericalMetric = config.selectedMetrics.some((m) =>
+      availableMetrics.find((def) => def.key === m)?.appliesTo === "numerical"
+    );
+    const hasCategoricalMetric = config.selectedMetrics.some((m) =>
+      availableMetrics.find((def) => def.key === m)?.appliesTo === "categorical"
+    );
+
+    const colTypeMap = Object.fromEntries(
+      validationSummary.availableColumns.map((c) => [c.columnName, c.dataType])
+    );
+
+    const unmatchedNumerical = config.selectedColumns.filter(
+      (col) => colTypeMap[col] === "numerical" && !hasNumericalMetric
+    );
+    const unmatchedCategorical = config.selectedColumns.filter(
+      (col) => colTypeMap[col] === "categorical" && !hasCategoricalMetric
+    );
+
+    const parts: string[] = [];
+    if (unmatchedNumerical.length > 0)
+      parts.push(`${unmatchedNumerical.length} numerical column(s) have no applicable metric selected`);
+    if (unmatchedCategorical.length > 0)
+      parts.push(`${unmatchedCategorical.length} categorical column(s) have no applicable metric selected`);
+
+    return parts.length > 0
+      ? parts.join(" · ") + " — these columns will produce no results."
+      : null;
+  }, [config.selectedMetrics, config.selectedColumns, validationSummary]);
 
   return (
     <div className="page-stack">
@@ -529,13 +577,22 @@ export default function SetupPage({
         <PrimaryButton variant="ghost" onClick={() => goToPage("validation")}>
           Back to Validation
         </PrimaryButton>
-        {/* Button is disabled if no metrics or columns are selected, or the column limit is exceeded */}
-        <PrimaryButton
-          onClick={() => onRunEvaluation(config)}
-          disabled={config.selectedMetrics.length === 0 || config.selectedColumns.length === 0 || config.selectedColumns.length > MAX_VARIABLES}
-        >
-          Run Evaluation
-        </PrimaryButton>
+        <div className="page-actions-right">
+          {mismatchWarning && (
+            <p className="upload-error upload-error--warning">{mismatchWarning}</p>
+          )}
+          <PrimaryButton
+            onClick={() => onRunEvaluation(config)}
+            disabled={
+              isLoading ||
+              config.selectedMetrics.length === 0 ||
+              config.selectedColumns.length === 0 ||
+              config.selectedColumns.length > MAX_VARIABLES
+            }
+          >
+            {isLoading ? "Running..." : "Run Evaluation"}
+          </PrimaryButton>
+        </div>
       </div>
     </div>
   );

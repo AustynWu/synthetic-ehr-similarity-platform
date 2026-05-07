@@ -328,6 +328,141 @@ p {
   font-size: 0.8rem;
 }
 
+.upload-error--global {
+  padding: 10px 14px;
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  color: #b91c1c;
+}
+
+.upload-error--warning {
+  padding: 10px 14px;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  color: #92400e;
+}
+
+/* ── Run Detail Page ───────────────────────────────────────────── */
+
+.run-detail-header {
+  padding: 8px 0 4px;
+}
+.run-detail-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+.run-detail-meta {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* 2-column grid for variable charts */
+.detail-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+.detail-chart-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  break-inside: avoid; /* keeps card together when printing */
+}
+
+.detail-chart-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.detail-chart-card-badges {
+  display: flex;
+  gap: 6px;
+}
+
+.detail-chart-card-chart {
+  min-height: 160px;
+}
+
+.detail-chart-metrics-table {
+  font-size: 0.8rem;
+}
+
+/* ── Print styles ─────────────────────────────────────────────── */
+@media print {
+  /* hide navigation, sidebar, buttons */
+  .no-print,
+  nav,
+  aside,
+  header {
+    display: none !important;
+  }
+
+  /* collapse the 2-column grid to single column so content fills the full page */
+  .app-shell {
+    display: block !important;
+  }
+
+  /* full width — no sidebar gap */
+  .main-content,
+  .page-stack {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* keep chart cards together across page breaks */
+  .detail-chart-card {
+    break-inside: avoid;
+  }
+
+  /* switch chart grid to single column so each chart gets full page width —
+     Recharts SVGs are rendered at browser width and do not resize on print,
+     single column (≈1009px) is wider than any rendered SVG (~540px) so no overflow */
+  .detail-chart-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* overflow-x: auto does not work in print — let table overflow naturally
+     then constrain it with table-layout: fixed below */
+  .table-wrapper {
+    overflow: visible !important;
+  }
+
+  /* force all tables to stay within the page width */
+  .data-table {
+    table-layout: fixed !important;
+    width: 100% !important;
+    font-size: 0.72rem !important;
+  }
+
+  /* tighter padding and allow long cell text to wrap */
+  .data-table th,
+  .data-table td {
+    padding: 5px 6px !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+  }
+
+  /* single column on narrow paper, 2-col on A4 landscape */
+  @page {
+    size: A4 landscape;
+    margin: 15mm;
+  }
+}
+
 .upload-icon {
   width: 52px;
   height: 52px;
@@ -423,6 +558,13 @@ p {
   color: var(--danger);
 }
 
+.missing-rate-badge {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.7rem;
+  text-transform: none;
+}
+
 .button {
   border: 1px solid transparent;
   border-radius: 14px;
@@ -461,6 +603,13 @@ p {
   justify-content: flex-end;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+.page-actions-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
 }
 
 .inline-note-row {
@@ -1441,4 +1590,85 @@ p {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+/* ── Error Modal ────────────────────────────────────────── */
+
+.error-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 24px;
+}
+
+.error-modal-card {
+  background: var(--surface);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  width: 100%;
+  max-width: 480px;
+  overflow: hidden;
+}
+
+.error-modal-header {
+  background: var(--danger-soft);
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.error-modal-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--danger);
+  color: #fff;
+  font-weight: 700;
+  font-size: 1rem;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.error-modal-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+.error-modal-message {
+  margin: 0;
+  padding: 20px;
+  font-size: 0.9rem;
+  color: var(--text);
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.error-modal-footer {
+  padding: 12px 20px 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.error-modal-close-btn {
+  padding: 8px 20px;
+  border-radius: 8px;
+  border: none;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.error-modal-close-btn:hover {
+  opacity: 0.85;
 }

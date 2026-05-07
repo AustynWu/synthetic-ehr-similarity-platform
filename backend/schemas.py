@@ -143,7 +143,8 @@ class EvaluationSummary(BaseModel):
     numericalSimilarityScore: Optional[float] = None    # null if no numerical metric selected
     categoricalSimilarityScore: Optional[float] = None  # null if no categorical metric selected
     relationshipSimilarityScore: Optional[float] = None # null if correlation_difference not selected
-    variablesAnalyzed: int
+    variablesAnalyzed: int   # variables that produced at least one score
+    variablesSelected: int   # variables the user selected on Setup
     metricsUsed: int
 
 class AnalysisContext(BaseModel):
@@ -155,10 +156,10 @@ class AnalysisContext(BaseModel):
 class VariableRankingItem(BaseModel):
     variable: str
     type: str                          # "numerical" | "categorical"
-    importanceScore: float             # 0-1, clinical relevance weight
     similarityScore: float             # 0-1, how closely real and synthetic match
     status: str                        # "good" | "moderate" | "poor"
     topContributingMetric: EvaluationMetric  # metric with largest gap for this variable
+    realMissingRate: float = 0.0       # 0-100, missing % in real dataset
 
 class MetricMatrixCell(BaseModel):
     variable: str
@@ -225,7 +226,7 @@ class EvaluationResult(BaseModel):
     summary: EvaluationSummary
     analysisContext: AnalysisContext
     reminders: list[str]                                    # auto-generated sentences
-    variableRanking: list[VariableRankingItem]              # sorted by importanceScore desc
+    variableRanking: list[VariableRankingItem]              # sorted by similarityScore asc (worst first)
     metricMatrix: MetricMatrix
     detailViews: dict[str, VariableDetailView]              # keyed by variable name
     insights: list[str]
