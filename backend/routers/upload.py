@@ -76,14 +76,14 @@ async def upload_datasets(
     _require_csv(real_file, "real_file")
     _require_csv(synthetic_file, "synthetic_file")
 
-    now     = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     # Use short hex IDs (8 chars) with a role prefix so they are readable in logs.
     # uuid4 ensures no collisions even if two users upload simultaneously.
     real_id = f"real-{uuid.uuid4().hex[:8]}"
-    syn_id  = f"syn-{uuid.uuid4().hex[:8]}"
+    syn_id = f"syn-{uuid.uuid4().hex[:8]}"
 
     real_contents = await real_file.read()
-    syn_contents  = await synthetic_file.read()
+    syn_contents = await synthetic_file.read()
 
     # Validate content after reading — the bytes are now in memory.
     _validate_csv_content(real_contents, "real_file")
@@ -93,7 +93,7 @@ async def upload_datasets(
     # Storing the full file (not just a preview) is needed because the evaluation
     # step processes every row.
     real_path = UPLOAD_DIR / f"{real_id}.csv"
-    syn_path  = UPLOAD_DIR / f"{syn_id}.csv"
+    syn_path = UPLOAD_DIR / f"{syn_id}.csv"
     real_path.write_bytes(real_contents)
     syn_path.write_bytes(syn_contents)
 

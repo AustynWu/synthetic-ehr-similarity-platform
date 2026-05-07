@@ -72,7 +72,8 @@ def run_evaluation(req: RunEvaluationRequest):
     # Intersect user selection with columns that actually exist in both files.
     # The Setup page shows only shared columns, so mismatches are unlikely, but
     # a stale session or re-upload could cause a column to disappear.
-    selected = [c for c in config.selectedColumns if c in real_df.columns and c in syn_df.columns]
+    shared_cols = set(real_df.columns) & set(syn_df.columns)
+    selected = [col for col in config.selectedColumns if col in shared_cols]
     if not selected:
         raise HTTPException(status_code=400, detail="No valid shared columns selected.")
 
@@ -123,8 +124,8 @@ def run_evaluation(req: RunEvaluationRequest):
         else:
             col_types[col] = infer_type(real_df[col], col)
 
-    numerical_cols   = [c for c in selected if col_types[c] == DataTypeLabel.numerical]
-    categorical_cols = [c for c in selected if col_types[c] == DataTypeLabel.categorical]
+    numerical_cols   = [col for col in selected if col_types[col] == DataTypeLabel.numerical]
+    categorical_cols = [col for col in selected if col_types[col] == DataTypeLabel.categorical]
 
     # ── Step 6: per-column, per-metric scores ─────────────────────────────────
     # raw_results[col][metric] = (raw_value, normalized_score)
@@ -169,16 +170,26 @@ def run_evaluation(req: RunEvaluationRequest):
     # Sorted ascending: worst-similarity columns appear first in the table.
     ranking: list[VariableRankingItem] = []
     for col in selected:
-        univariate = {m: r for m, r in raw_results[col].items() if m not in _CROSS_VARIABLE_METRICS}
+        univariate = {
+            metric: result
+            for metric, result in raw_results[col].items()
+            if metric not in _CROSS_VARIABLE_METRICS
+        }
         if not univariate:
             continue  # no applicable metrics for this column — exclude from ranking
         scores     = [score for _, score in univariate.values()]
         sim_score  = round(statistics.mean(scores), 4)
+        # result tuples are (raw_value, normalized_score); [1] picks the score
         top_metric = min(univariate, key=lambda m: univariate[m][1])
         # Thresholds: 0.80 = good, 0.65–0.80 = moderate, <0.65 = poor.
         # These are calibrated so that common EHR columns (age, diagnosis) typically
         # land in "good" when the generator is working correctly.
-        status = "good" if sim_score >= 0.80 else ("moderate" if sim_score >= 0.65 else "poor")
+        if sim_score >= 0.80:
+            status = "good"
+        elif sim_score >= 0.65:
+            status = "moderate"
+        else:
+            status = "poor"
         ranking.append(VariableRankingItem(
             variable=col,
             type=col_types[col].value if col_types[col] in (DataTypeLabel.numerical, DataTypeLabel.categorical) else "numerical",
@@ -187,7 +198,7 @@ def run_evaluation(req: RunEvaluationRequest):
             topContributingMetric=top_metric,
             realMissingRate=real_missing_rates.get(col, 0.0),
         ))
-    ranking.sort(key=lambda x: x.similarityScore)
+    ranking.sort(key=lambda item: item.similarityScore)
 
     # ── Step 8c: detail views (chart data per column) ────────────────────────
     # Skip columns with no metric results — there is nothing meaningful to show.
@@ -218,7 +229,9 @@ def run_evaluation(req: RunEvaluationRequest):
     # statistics.mean() would return NaN if any element is NaN — the filter prevents
     # a single bad column from making the entire overall score undefined.
     all_scores = [
-        score for col in selected for _, score in raw_results[col].values()
+        score
+        for col in selected
+        for (_, score) in raw_results[col].values()
         if not math.isnan(score)
     ]
     overall = round(statistics.mean(all_scores), 4) if all_scores else 0.0
@@ -230,15 +243,20 @@ def run_evaluation(req: RunEvaluationRequest):
         # NaN filter mirrors the all_scores filter above — prevents a single bad column
         # from making the sub-score undefined when statistics.mean() receives a NaN.
         scores = [
-            score for col in selected
-            for m, (_, score) in raw_results[col].items()
-            if m in metric_set and not math.isnan(score)
+            score
+            for col in selected
+            for metric, (_, score) in raw_results[col].items()
+            if metric in metric_set and not math.isnan(score)
         ]
         return round(statistics.mean(scores), 4) if scores else None
 
     # active_metrics: deduplicated list of metrics that produced at least one result.
     # Used for metricsUsed count and to populate the metric matrix column headers.
-    active_metrics = list({m for col in selected for m in raw_results[col]})
+    active_metrics = list({
+        metric
+        for col in selected
+        for metric in raw_results[col]
+    })
 
     summary = EvaluationSummary(
         overallSimilarityScore=overall,
@@ -294,8 +312,12 @@ def run_evaluation(req: RunEvaluationRequest):
     num_score = summary.numericalSimilarityScore
     cat_score = summary.categoricalSimilarityScore
     if num_score is not None and cat_score is not None and abs(num_score - cat_score) >= 0.15:
-        lower, higher = ("numerical", "categorical") if num_score < cat_score else ("categorical", "numerical")
-        lo_val, hi_val = (num_score, cat_score) if num_score < cat_score else (cat_score, num_score)
+        if num_score < cat_score:
+            lower, higher = "numerical", "categorical"
+            lo_val, hi_val = num_score, cat_score
+        else:
+            lower, higher = "categorical", "numerical"
+            lo_val, hi_val = cat_score, num_score
         insights.append(
             f"{lower.capitalize()} variables score notably lower than {higher} ({lo_val:.2f} vs {hi_val:.2f}) — "
             + ("distribution shapes differ more than category proportions."

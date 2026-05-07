@@ -398,7 +398,13 @@ export default function ResultsPage({
           title="Numerical–Numerical: Correlation Comparison"
           subtitle="Pearson r for variable pairs — top pairs by largest difference shown first."
         >
-          <table className="data-table">
+          <table className="data-table" style={{ tableLayout: "fixed" }}>
+            <colgroup>
+              <col style={{ width: "50%" }} />
+              <col style={{ width: "15%" }} />
+              <col style={{ width: "20%" }} />
+              <col style={{ width: "15%" }} />
+            </colgroup>
             <thead>
               <tr>
                 <th>Variable pair</th>
@@ -431,7 +437,13 @@ export default function ResultsPage({
           title="Categorical–Categorical: Cramér's V Comparison"
           subtitle="Association strength for categorical variable pairs — top pairs by largest difference shown first."
         >
-          <table className="data-table">
+          <table className="data-table" style={{ tableLayout: "fixed" }}>
+            <colgroup>
+              <col style={{ width: "50%" }} />
+              <col style={{ width: "15%" }} />
+              <col style={{ width: "20%" }} />
+              <col style={{ width: "15%" }} />
+            </colgroup>
             <thead>
               <tr>
                 <th>Variable pair</th>

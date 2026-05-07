@@ -6,6 +6,9 @@
 import pandas as pd
 from schemas import DataTypeLabel, DetailViewSeries
 
+_MAX_CATEGORICAL_BARS = 20  # more bars become unreadable in the UI chart
+_HISTOGRAM_BINS = 10        # bin count for numerical distribution charts
+
 
 def build_detail_series(
     real_col: pd.Series,
@@ -32,7 +35,9 @@ def build_detail_series(
     edge bins rather than being silently dropped.
     """
     if col_type == DataTypeLabel.categorical:
-        all_cats = sorted(set(real_col.dropna().unique()) | set(syn_col.dropna().unique()))
+        all_cats = sorted(
+            set(real_col.dropna().unique()) | set(syn_col.dropna().unique())
+        )
         real_prop = real_col.value_counts(normalize=True)
         syn_prop  = syn_col.value_counts(normalize=True)
         return [
@@ -41,14 +46,13 @@ def build_detail_series(
                 real=round(float(real_prop.get(cat, 0.0)), 4),
                 synthetic=round(float(syn_prop.get(cat, 0.0)), 4),
             )
-            # Cap at 20 bars — more categories become unreadable in the UI chart.
-            for cat in all_cats[:20]
+            for cat in all_cats[:_MAX_CATEGORICAL_BARS]
         ]
 
     # Numerical: define bins from the real column's range.
     col_min = float(real_col.min())
     col_max = float(real_col.max())
-    bins = pd.cut(real_col, bins=10, include_lowest=True)
+    bins = pd.cut(real_col, bins=_HISTOGRAM_BINS, include_lowest=True)
     bin_labels = [str(b) for b in bins.cat.categories]
 
     real_counts = pd.cut(

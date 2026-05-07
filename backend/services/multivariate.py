@@ -67,29 +67,30 @@ def compute_multivariate_results(
                 syntheticCorrelation=round(syn_r, 4),
                 difference=round(abs(real_r - syn_r), 4),
             ))
-        corr_pairs.sort(key=lambda x: x.difference, reverse=True)
+        corr_pairs.sort(key=lambda pair: pair.difference, reverse=True)
 
     # ── Categorical–Categorical: Cramér's V ───────────────────────────────────
     # Cramér's V measures association strength between two categorical columns.
     # Range 0–1 (0 = independent, 1 = perfectly associated).
     # We compare V in real vs V in synthetic: a large difference means the
     # synthetic data has lost (or fabricated) a dependency between two categories.
-    def cramers_v(df: pd.DataFrame, c1: str, c2: str) -> float | None:
-        ct = pd.crosstab(df[c1].dropna(), df[c2].dropna())
+    def cramers_v(df: pd.DataFrame, col1: str, col2: str) -> float | None:
+        ct = pd.crosstab(df[col1].dropna(), df[col2].dropna())
         if ct.shape[0] < 2 or ct.shape[1] < 2:
             return None  # chi2 requires at least a 2×2 table
-        stat, _, _, _ = chi2_contingency(ct)
-        n = int(ct.sum().sum())
-        k = min(ct.shape) - 1
-        if k == 0 or n == 0:
+        # chi2_contingency returns (chi2_stat, p_value, dof, expected_freq); only stat is used
+        chi2_stat, _, _, _ = chi2_contingency(ct)
+        total_n = int(ct.sum().sum())
+        min_dim = min(ct.shape) - 1  # min(rows, cols) - 1 for Cramér's V formula
+        if min_dim == 0 or total_n == 0:
             return None
-        return min(math.sqrt(float(stat) / (n * k)), 1.0)
+        return min(math.sqrt(float(chi2_stat) / (total_n * min_dim)), 1.0)
 
     cramers_pairs: list[CramersVPair] = []
     if EvaluationMetric.cramers_v_comparison in selected_metrics:
         for col1, col2 in combinations(categorical_cols, 2):
             real_v = cramers_v(real_df, col1, col2)
-            syn_v  = cramers_v(syn_df,  col1, col2)
+            syn_v  = cramers_v(syn_df, col1, col2)
             if real_v is None or syn_v is None:
                 continue
             cramers_pairs.append(CramersVPair(
@@ -98,7 +99,7 @@ def compute_multivariate_results(
                 syntheticCramersV=round(syn_v, 4),
                 difference=round(abs(real_v - syn_v), 4),
             ))
-        cramers_pairs.sort(key=lambda x: x.difference, reverse=True)
+        cramers_pairs.sort(key=lambda pair: pair.difference, reverse=True)
 
     # ── Mixed: group-wise mean (numerical × categorical) ─────────────────────
     # For each (numerical, categorical) pair, break the numerical column into
@@ -133,7 +134,7 @@ def compute_multivariate_results(
                         syntheticMean=round(syn_mean, 2),
                         difference=round(abs(real_mean - syn_mean), 2),
                     ))
-        groupwise.sort(key=lambda x: x.difference, reverse=True)
+        groupwise.sort(key=lambda row: row.difference, reverse=True)
 
     return MultivariateResults(
         topCorrelationPairs=corr_pairs[:MULTIVARIATE_TOP_K],

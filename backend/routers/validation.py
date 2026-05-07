@@ -96,7 +96,7 @@ def validate_datasets(req: ValidateRequest):
             status=status,
         ))
 
-    matched_cols = [c for c in all_cols if c in real_cols and c in syn_cols]
+    matched_cols = list(real_cols & syn_cols)  # columns present in both files
     unmatched    = len(all_cols) - len(matched_cols)
 
     if len(matched_cols) == 0:
@@ -117,7 +117,7 @@ def validate_datasets(req: ValidateRequest):
         AvailableColumn(columnName=col, dataType=real_type_cache[col])
         for col in sorted(matched_cols)
         if col not in KNOWN_ID_COLS
-        and real_type_cache[col] in ("numerical", "categorical")
+        and real_type_cache[col] in (DataTypeLabel.numerical, DataTypeLabel.categorical)
     ]
 
     return ValidationSummary(
@@ -125,7 +125,6 @@ def validate_datasets(req: ValidateRequest):
         matchedColumnCount=len(matched_cols), unmatchedColumnCount=unmatched,
         schemaComparison=schema_rows, availableColumns=available,
         issues=issues,
-        # canProceed is False only if at least one error-level issue exists.
-        # Warnings and info messages still allow the user to proceed.
-        canProceed=not any(i.level == "error" for i in issues),
+        # False only when at least one error-level issue exists; warnings/info still allow proceeding.
+        canProceed=not any(issue.level == "error" for issue in issues),
     )

@@ -52,6 +52,7 @@ def compute_metric(
     # D = largest vertical gap between the two CDFs.
     # Score = 1 - D so that a perfect match (D=0) gives score 1.
     if metric == EvaluationMetric.ks_test and col_type == DataTypeLabel.numerical:
+        # ks_2samp returns (statistic, p_value); only the statistic is needed here
         stat, _ = ks_2samp(r.values, s.values)
         return float(stat), 1.0 - float(stat)
 
@@ -77,12 +78,13 @@ def compute_metric(
         real_counts = r.value_counts().reindex(all_cats, fill_value=0)
         syn_counts  = s.value_counts().reindex(all_cats, fill_value=0)
         contingency = pd.DataFrame({"real": real_counts, "synthetic": syn_counts})
-        stat, _, _, _ = chi2_contingency(contingency.values)
-        n = len(r) + len(s)
-        k = len(all_cats)
-        cramers_v = math.sqrt(float(stat) / (n * max(k - 1, 1)))
+        # chi2_contingency returns (chi2_stat, p_value, dof, expected_freq); only stat is used
+        chi2_stat, _, _, _ = chi2_contingency(contingency.values)
+        total_n = len(r) + len(s)
+        n_categories = len(all_cats)
+        cramers_v = math.sqrt(float(chi2_stat) / (total_n * max(n_categories - 1, 1)))
         cramers_v = min(cramers_v, 1.0)  # clamp: floating-point errors can push it slightly above 1
-        return float(stat), round(1.0 - cramers_v, 4)
+        return float(chi2_stat), round(1.0 - cramers_v, 4)
 
     # ── Category Proportion Difference (categorical only) ─────────────────────
     # Average absolute difference in proportion across all categories.
@@ -92,8 +94,8 @@ def compute_metric(
         all_cats = set(r.unique()) | set(s.unique())
         real_prop = r.value_counts(normalize=True).reindex(all_cats, fill_value=0.0)
         syn_prop  = s.value_counts(normalize=True).reindex(all_cats, fill_value=0.0)
-        raw = float((real_prop - syn_prop).abs().mean())
-        return raw, 1.0 - raw
+        avg_prop_diff = float((real_prop - syn_prop).abs().mean())
+        return avg_prop_diff, 1.0 - avg_prop_diff
 
     return None
 
@@ -126,7 +128,7 @@ def compute_correlation_difference(
 
     result: dict[str, tuple[float, float]] = {}
     for col in numerical_cols:
-        others = [c for c in numerical_cols if c != col]
+        others = [other for other in numerical_cols if other != col]
         if not others:
             continue
         raw = float(diff.loc[col, others].mean())

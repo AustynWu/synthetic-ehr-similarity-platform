@@ -199,9 +199,20 @@ export default function RunDetailPage({
       {/* ── Section 5: Multivariate tables ───────────────────────────────────── */}
       {mv?.topCorrelationPairs?.length ? (
         <SectionCard title="Numerical–Numerical: Correlation Comparison">
-          <table className="data-table">
+          <table className="data-table" style={{ tableLayout: "fixed" }}>
+            <colgroup>
+              <col style={{ width: "50%" }} />
+              <col style={{ width: "15%" }} />
+              <col style={{ width: "20%" }} />
+              <col style={{ width: "15%" }} />
+            </colgroup>
             <thead>
-              <tr><th>Variable pair</th><th>Real r</th><th>Synthetic r</th><th>Difference</th></tr>
+              <tr>
+                <th>Variable pair</th>
+                <th>Real r</th>
+                <th>Synthetic r</th>
+                <th>Difference</th>
+              </tr>
             </thead>
             <tbody>
               {mv.topCorrelationPairs.map((p) => (
@@ -223,9 +234,20 @@ export default function RunDetailPage({
 
       {mv?.topCramersVPairs?.length ? (
         <SectionCard title="Categorical–Categorical: Cramér's V Comparison">
-          <table className="data-table">
+          <table className="data-table" style={{ tableLayout: "fixed" }}>
+            <colgroup>
+              <col style={{ width: "50%" }} />
+              <col style={{ width: "15%" }} />
+              <col style={{ width: "20%" }} />
+              <col style={{ width: "15%" }} />
+            </colgroup>
             <thead>
-              <tr><th>Variable pair</th><th>Real V</th><th>Synthetic V</th><th>Difference</th></tr>
+              <tr>
+                <th>Variable pair</th>
+                <th>Real V</th>
+                <th>Synthetic V</th>
+                <th>Difference</th>
+              </tr>
             </thead>
             <tbody>
               {mv.topCramersVPairs.map((p) => (
