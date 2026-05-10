@@ -40,7 +40,11 @@ export async function apiGet<T>(path: string): Promise<T> {
   // Why check res.ok?
   //   fetch() does NOT throw an error when the server returns 404 or 500 — it just gives
   //   us a response with ok=false. We must check manually and throw to signal failure.
-  if (!res.ok) throw new Error(`GET ${path} failed: ${res.status} ${res.statusText}`);
+  if (!res.ok) {
+    let detail = "";
+    try { detail = (await res.json()).detail ?? ""; } catch { /* body is not JSON */ }
+    throw new Error(detail || `GET ${path} failed: ${res.status} ${res.statusText}`);
+  }
 
   // res.json() reads the response body and converts the JSON text into a JavaScript object.
   // "as Promise<T>" tells TypeScript to trust us that the shape matches T.
@@ -63,7 +67,11 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
 
-  if (!res.ok) throw new Error(`POST ${path} failed: ${res.status} ${res.statusText}`);
+  if (!res.ok) {
+    let detail = "";
+    try { detail = (await res.json()).detail ?? ""; } catch { /* body is not JSON */ }
+    throw new Error(detail || `POST ${path} failed: ${res.status} ${res.statusText}`);
+  }
   return res.json() as Promise<T>;
 }
 
@@ -82,6 +90,10 @@ export async function apiUpload<T>(path: string, formData: FormData): Promise<T>
     body: formData,
   });
 
-  if (!res.ok) throw new Error(`POST ${path} (upload) failed: ${res.status} ${res.statusText}`);
+  if (!res.ok) {
+    let detail = "";
+    try { detail = (await res.json()).detail ?? ""; } catch { /* body is not JSON */ }
+    throw new Error(detail || `POST ${path} (upload) failed: ${res.status} ${res.statusText}`);
+  }
   return res.json() as Promise<T>;
 }

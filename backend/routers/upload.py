@@ -20,6 +20,8 @@ import state
 
 router = APIRouter()
 
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
+
 
 def _require_csv(file: UploadFile, field: str) -> None:
     """Reject the request early if the file extension is not .csv.
@@ -75,6 +77,13 @@ async def upload_datasets(
     # Check extension first — fail fast before reading file bytes.
     _require_csv(real_file, "real_file")
     _require_csv(synthetic_file, "synthetic_file")
+
+    # Reject oversized files before reading into memory.
+    # file.size may be None if the client omits Content-Length, so guard with `and`.
+    if real_file.size and real_file.size > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="real_file exceeds the 50 MB upload limit.")
+    if synthetic_file.size and synthetic_file.size > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="synthetic_file exceeds the 50 MB upload limit.")
 
     now = datetime.now(timezone.utc).isoformat()
     # Use short hex IDs (8 chars) with a role prefix so they are readable in logs.

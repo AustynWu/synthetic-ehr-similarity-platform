@@ -86,14 +86,21 @@ export default function App() {
 
   // Load saved comparisons once on mount — fetches GET /comparisons from the backend.
   useEffect(() => {
-    getSavedComparisons().then(setSavedComparisons).catch(console.error);
+    getSavedComparisons()
+      .then(setSavedComparisons)
+      .catch(() => {
+        setErrorModal({
+          title: "Backend Unavailable",
+          message: "Could not connect to the backend. Saved comparisons cannot be loaded. Please check your connection or try again shortly.",
+        });
+      });
   }, []);
 
   // ── Completed steps (shown as check marks in the sidebar) ──
   // Recalculates only when any dependency changes
   const completedSteps = useMemo(() => {
     const steps = new Set<PageKey>();
-    if (uploadedDatasets.realDataset || uploadedDatasets.syntheticDataset) steps.add("upload");
+    if (uploadedDatasets.realDataset && uploadedDatasets.syntheticDataset) steps.add("upload");
     if (validationSummary) steps.add("validation");
     if (evaluationResult) steps.add("setup");
     if (evaluationResult) steps.add("results");
@@ -162,7 +169,16 @@ export default function App() {
       setEvaluationResult(result);
       setCurrentPage("results");
     } catch (err) {
-      setErrorModal({ title: "Evaluation Failed", message: err instanceof Error ? err.message : "Evaluation failed. Please check the backend is running." });
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("Dataset ID not found")) {
+        setErrorModal({
+          title: "Session Expired",
+          message: "The server restarted and your uploaded files were lost. Please upload the files again.",
+        });
+        setCurrentPage("upload");
+      } else {
+        setErrorModal({ title: "Evaluation Failed", message: msg || "Evaluation failed. Please check the backend is running." });
+      }
     } finally {
       setIsEvaluating(false);
     }
@@ -177,7 +193,16 @@ export default function App() {
       setRunDetailComparison(comparison);
       setCurrentPage("runDetail");
     } catch (err) {
-      setErrorModal({ title: "Load Failed", message: err instanceof Error ? err.message : "Failed to load run details." });
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("not found") || msg.includes("404")) {
+        setErrorModal({
+          title: "Run Not Found",
+          message: "This saved run no longer exists — the server may have restarted. Please re-run the evaluation and save again.",
+        });
+        setCurrentPage("saved");
+      } else {
+        setErrorModal({ title: "Load Failed", message: msg || "Failed to load run details." });
+      }
     } finally {
       setIsLoadingRunDetail(false);
     }
