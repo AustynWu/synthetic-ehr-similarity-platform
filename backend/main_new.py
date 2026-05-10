@@ -34,7 +34,10 @@ app = FastAPI(title="Synthetic vs Real EHR Similarity API")
 # In a production deployment this would be replaced with the actual domain name.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "https://synthetic-ehr-similarity-platform.vercel.app",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
