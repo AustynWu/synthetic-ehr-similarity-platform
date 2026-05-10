@@ -299,18 +299,18 @@ export async function runEvaluation(
   config: EvaluationConfig,
   datasetIds?: { realDatasetId: string; syntheticDatasetId: string }
 ): Promise<EvaluationResult> {
-  if (USE_REAL_API && datasetIds) {
-    // Send everything the backend needs in one JSON body:
-    //   realDatasetId + syntheticDatasetId — which files to load
-    //   config                             — which columns and metrics to use
-    return apiPost<EvaluationResult>("/evaluations/run", {
-      realDatasetId: datasetIds.realDatasetId,
-      syntheticDatasetId: datasetIds.syntheticDatasetId,
-      config,
-    });
+  if (!USE_REAL_API) {
+    throw new Error("Backend API is not configured. Please check that VITE_USE_REAL_API=true is set.");
   }
-
-  // --- mock fallback — disabled for production ---
-  // return Promise.resolve({ ...mockEvaluationResult, appliedConfig: config });
-  throw new Error("Dataset IDs are required to run evaluation.");
+  if (!datasetIds) {
+    throw new Error("Dataset IDs are required to run evaluation.");
+  }
+  // Send everything the backend needs in one JSON body:
+  //   realDatasetId + syntheticDatasetId — which files to load
+  //   config                             — which columns and metrics to use
+  return apiPost<EvaluationResult>("/evaluations/run", {
+    realDatasetId: datasetIds.realDatasetId,
+    syntheticDatasetId: datasetIds.syntheticDatasetId,
+    config,
+  });
 }

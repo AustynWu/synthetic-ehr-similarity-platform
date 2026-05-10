@@ -29,26 +29,18 @@ import { USE_REAL_API, apiUpload, apiPost } from "./apiClient";
 // Mock:     Returns a copy of mock data but patches in the actual file name and size
 //           so the UI shows the real file the user selected, not the hardcoded fake name.
 export async function uploadDatasets(files: UploadFilesInput): Promise<UploadedDatasets> {
-  if (USE_REAL_API && files.realFile && files.syntheticFile) {
-    // Build a FormData package with both files.
-    // form.append("real_file", ...) — "real_file" must match the parameter name in the FastAPI endpoint.
-    const form = new FormData();
-    form.append("real_file", files.realFile);
-    form.append("synthetic_file", files.syntheticFile);
-    return apiUpload<UploadedDatasets>("/datasets/upload", form);
+  if (!USE_REAL_API) {
+    throw new Error("Backend API is not configured. Please check that VITE_USE_REAL_API=true is set.");
   }
-
-  // --- mock fallback — disabled for production ---
-  // const now = new Date().toISOString();
-  // return Promise.resolve({
-  //   realDataset: mockDatasets.realDataset
-  //     ? { ...mockDatasets.realDataset, fileName: files.realFile?.name ?? mockDatasets.realDataset.fileName, sizeBytes: files.realFile?.size ?? mockDatasets.realDataset.sizeBytes, uploadedAt: now }
-  //     : null,
-  //   syntheticDataset: mockDatasets.syntheticDataset
-  //     ? { ...mockDatasets.syntheticDataset, fileName: files.syntheticFile?.name ?? mockDatasets.syntheticDataset.fileName, sizeBytes: files.syntheticFile?.size ?? mockDatasets.syntheticDataset.sizeBytes, uploadedAt: now }
-  //     : null,
-  // });
-  throw new Error("Both CSV files are required for upload.");
+  if (!files.realFile || !files.syntheticFile) {
+    throw new Error("Both CSV files are required for upload.");
+  }
+  // Build a FormData package with both files.
+  // form.append("real_file", ...) — "real_file" must match the parameter name in the FastAPI endpoint.
+  const form = new FormData();
+  form.append("real_file", files.realFile);
+  form.append("synthetic_file", files.syntheticFile);
+  return apiUpload<UploadedDatasets>("/datasets/upload", form);
 }
 
 
@@ -69,11 +61,12 @@ export async function uploadDatasets(files: UploadFilesInput): Promise<UploadedD
 export async function getValidationSummary(
   datasetIds?: { realDatasetId: string; syntheticDatasetId: string }
 ): Promise<ValidationSummary> {
-  if (USE_REAL_API && datasetIds) {
-    // Send both IDs as a JSON body. The backend looks up the files by these IDs.
-    return apiPost<ValidationSummary>("/datasets/validate", datasetIds);
+  if (!USE_REAL_API) {
+    throw new Error("Backend API is not configured. Please check that VITE_USE_REAL_API=true is set.");
   }
-  // --- mock fallback — disabled for production ---
-  // return Promise.resolve(mockValidationSummary);
-  throw new Error("Dataset IDs are required for validation.");
+  if (!datasetIds) {
+    throw new Error("Dataset IDs are required for validation.");
+  }
+  // Send both IDs as a JSON body. The backend looks up the files by these IDs.
+  return apiPost<ValidationSummary>("/datasets/validate", datasetIds);
 }
