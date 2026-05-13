@@ -223,4 +223,7 @@ uploads/
 *.zip
 /frontend/screenshots
 /testResult
-/datasets/synthetic dataset
+
+# Claude Code local settings (machine-specific, not for sharing)
+.claude/
+
