@@ -68,7 +68,18 @@ export default function ValidationPage({ validationSummary, goToPage }: SharedPa
 
   // Schema comparison table column definitions
   const columns: DataTableColumn<SchemaComparisonRow>[] = [
-    { key: "columnName", label: "Column" },
+    {
+      key: "columnName",
+      label: "Column",
+      render: (_v, row) => (
+        <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          {row.columnName}
+          {(row.realMissingRate > 20 || row.syntheticMissingRate > 20) && (
+            <StatusBadge tone="warning">High missing</StatusBadge>
+          )}
+        </span>
+      ),
+    },
     {
       // Show one type if both match; show "real → synthetic" in red if they differ
       key: "realType",
@@ -154,9 +165,9 @@ export default function ValidationPage({ validationSummary, goToPage }: SharedPa
                 <strong>{validationSummary.realDataset.columnCount}</strong>
               </div>
 
-              {/* Columns with any missing values */}
+              {/* Number of columns that contain at least one empty cell */}
               <div className="dataset-stat-row">
-                <span>Columns with missing</span>
+                <span>Columns with missing <span className="stat-label-note">(≥ 1 empty cell)</span></span>
                 <strong>
                   {validationSummary.realDataset.missingColumnCount}
                   <span className="stat-sub">
@@ -166,16 +177,16 @@ export default function ValidationPage({ validationSummary, goToPage }: SharedPa
               </div>
 
               {/*
-                Missing value count + percentage of all cells.
+                Total empty cells across the entire dataset.
+                "Missing cells" is more precise than "Missing values" to avoid confusion with column count.
                 Formula: missing ÷ (rows × columns) × 100
-                The percentage gives immediate intuition (e.g. "7.3% of cells are empty").
               */}
               <div className="dataset-stat-row">
-                <span>Missing values</span>
+                <span>Missing cells</span>
                 <strong>
                   {r.missingValueCount.toLocaleString()}
                   <span className="stat-sub">
-                    ({realMissingCellPct}% of cells)
+                    ({realMissingCellPct}% of all cells)
                   </span>
                 </strong>
               </div>
@@ -212,7 +223,7 @@ export default function ValidationPage({ validationSummary, goToPage }: SharedPa
               </div>
 
               <div className="dataset-stat-row">
-                <span>Columns with missing</span>
+                <span>Columns with missing <span className="stat-label-note">(≥ 1 empty cell)</span></span>
                 <strong>
                   {validationSummary.syntheticDataset.missingColumnCount}
                   <span className="stat-sub">
@@ -222,11 +233,11 @@ export default function ValidationPage({ validationSummary, goToPage }: SharedPa
               </div>
 
               <div className="dataset-stat-row">
-                <span>Missing values</span>
+                <span>Missing cells</span>
                 <strong>
                   {s.missingValueCount.toLocaleString()}
                   <span className="stat-sub">
-                    ({synMissingCellPct}% of cells)
+                    ({synMissingCellPct}% of all cells)
                   </span>
                 </strong>
               </div>
@@ -252,6 +263,17 @@ export default function ValidationPage({ validationSummary, goToPage }: SharedPa
             ? "Row counts match exactly between both datasets."
             : `Synthetic has ${Math.abs(rowDiff).toLocaleString()} ${rowDiff > 0 ? "more" : "fewer"} rows than Real (${rowDiffPct}% difference).`}
         </div>
+
+        {/* Missing cell rate comparison banner — shows real vs synthetic side by side */}
+        {(() => {
+          const diff = Math.abs(Number(realMissingCellPct) - Number(synMissingCellPct));
+          const tone: StatusTone = diff < 1 ? "success" : diff < 5 ? "warning" : "danger";
+          return (
+            <div className={`row-count-diff row-count-diff--${tone}`}>
+              {`Missing cell rate — Real: ${realMissingCellPct}%  vs  Synthetic: ${synMissingCellPct}%  (${diff.toFixed(1)}% difference)`}
+            </div>
+          );
+        })()}
       </PageSection>
 
       {/* Schema comparison table — full width */}

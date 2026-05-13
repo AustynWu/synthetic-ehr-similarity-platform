@@ -17,7 +17,122 @@ from schemas import (
     EvaluationMetric, MultivariateResults,
     CorrelationPair, CramersVPair, GroupwiseSummaryRow,
 )
-from constants import MULTIVARIATE_TOP_K
+from constants import MULTIVARIATE_TOP_K, MAX_CRAMERS_HEATMAP_VARS, MAX_CORR_HEATMAP_VARS
+
+
+def _select_active_corr_vars(
+    all_pairs: list[CorrelationPair],
+    all_vars: list[str],
+    max_vars: int,
+    activity_threshold: float = 0.10,
+) -> tuple[list[str], str]:
+    """
+    Choose the numerical variables most worth showing in the correlation heatmap.
+
+    Uses the same activity-score logic as _select_active_cramers_vars:
+    variables that appear repeatedly in high-difference pairs (|real_r - synthetic_r|
+    > activity_threshold) are ranked first because they represent relationships the
+    synthetic generator failed to preserve.  Alphabetical tiebreaking ensures a
+    stable, reproducible order across runs.
+
+    Args:
+        all_pairs:          every CorrelationPair, already sorted by difference desc.
+        all_vars:           all numerical columns the user selected.
+        max_vars:           hard cap on variables shown in the heatmap.
+        activity_threshold: minimum |Δr| for a pair to count toward a variable's score.
+
+    Returns:
+        selected  — up to max_vars variable names ranked by activity then name.
+        note      — human-readable explanation shown directly in the UI.
+    """
+    activity: dict[str, int] = {v: 0 for v in all_vars}
+    for pair in all_pairs:
+        if pair.difference > activity_threshold:
+            activity[pair.variable1] += 1
+            activity[pair.variable2] += 1
+
+    ranked   = sorted(all_vars, key=lambda v: (-activity[v], v))
+    selected = ranked[:max_vars]
+    total    = len(all_vars)
+
+    if total <= max_vars:
+        note = (
+            f"All {total} numerical variable{'s' if total != 1 else ''} are shown. "
+            "Each cell shows the absolute difference in Pearson correlation "
+            "between real and synthetic data (0 = identical, 1 = completely different)."
+        )
+    else:
+        note = (
+            f"Showing {len(selected)} of {total} numerical variables. "
+            f"Variables were ranked by how often they appear in pairs with "
+            f"|Δr| > {activity_threshold:.2f}, surfacing the relationships that "
+            f"changed most between real and synthetic data. "
+            f"The remaining {total - len(selected)} variable(s) had fewer "
+            f"high-difference pairs and are omitted to keep the heatmap readable."
+        )
+
+    return selected, note
+
+
+def _select_active_cramers_vars(
+    all_pairs: list[CramersVPair],
+    all_vars: list[str],
+    max_vars: int,
+    activity_threshold: float = 0.10,
+) -> tuple[list[str], str]:
+    """
+    Choose the variables most worth showing in the Cramér's V heatmap.
+
+    Why "activity score" instead of alphabetical or random selection?
+    When many categorical variables are selected, we cannot show all of them
+    without the heatmap becoming unreadable.  Alphabetical slicing is arbitrary
+    and might hide the most interesting pairs.  Instead we count how many
+    high-difference pairs each variable appears in: a variable that shows up
+    repeatedly in pairs where |real_V - synthetic_V| > threshold is one whose
+    categorical associations were hardest for the synthetic generator to preserve.
+    Showing those variables first means the heatmap always answers the question
+    the user actually cares about: "which relationships changed most?"
+
+    Args:
+        all_pairs:          every Cramér's V pair, already computed and sorted.
+        all_vars:           all categorical columns the user selected.
+        max_vars:           hard cap on how many variables the heatmap may show.
+        activity_threshold: minimum |ΔV| for a pair to count toward a variable's score.
+
+    Returns:
+        selected  — up to max_vars variable names, ranked by activity then name.
+        note      — human-readable explanation shown directly in the UI.
+    """
+    # Tally how many high-difference pairs each variable participates in.
+    activity: dict[str, int] = {v: 0 for v in all_vars}
+    for pair in all_pairs:
+        if pair.difference > activity_threshold:
+            activity[pair.variable1] += 1
+            activity[pair.variable2] += 1
+
+    # Primary sort: activity descending (most divergent variables first).
+    # Secondary sort: alphabetical for a stable, reproducible order.
+    ranked = sorted(all_vars, key=lambda v: (-activity[v], v))
+    selected = ranked[:max_vars]
+    total = len(all_vars)
+
+    if total <= max_vars:
+        note = (
+            f"All {total} categorical variable{'s' if total != 1 else ''} are shown. "
+            "Each cell shows the absolute difference in Cramér's V association strength "
+            "between real and synthetic data (0 = identical, 1 = completely different)."
+        )
+    else:
+        note = (
+            f"Showing {len(selected)} of {total} categorical variables. "
+            f"Variables were ranked by how often they appear in pairs with "
+            f"|ΔV| > {activity_threshold:.2f}, surfacing the associations that "
+            f"changed most between real and synthetic data. "
+            f"The remaining {total - len(selected)} variable(s) had fewer "
+            f"high-difference pairs and are omitted to keep the heatmap readable."
+        )
+
+    return selected, note
 
 
 def compute_multivariate_results(
@@ -49,6 +164,9 @@ def compute_multivariate_results(
 
     # ── Numerical–Numerical: Pearson r ────────────────────────────────────────
     corr_pairs: list[CorrelationPair] = []
+    real_corr_matrix: dict[str, dict[str, float]] | None = None
+    syn_corr_matrix:  dict[str, dict[str, float]] | None = None
+
     if EvaluationMetric.correlation_difference in selected_metrics:
         for col1, col2 in combinations(numerical_cols, 2):
             # dropna() on the pair together so both columns lose the same rows —
@@ -68,6 +186,34 @@ def compute_multivariate_results(
                 difference=round(abs(real_r - syn_r), 4),
             ))
         corr_pairs.sort(key=lambda pair: pair.difference, reverse=True)
+
+        # Build heatmap matrices — only include variables selected by activity score
+        # so the heatmap stays readable and focuses on the most divergent pairs.
+        if corr_pairs:
+            heatmap_vars, corr_heatmap_note = _select_active_corr_vars(
+                corr_pairs, numerical_cols, MAX_CORR_HEATMAP_VARS
+            )
+            heatmap_var_set = set(heatmap_vars)
+
+            real_m: dict[str, dict[str, float]] = {}
+            syn_m:  dict[str, dict[str, float]] = {}
+
+            # Only populate cells where both variables are in the selected set.
+            for pair in corr_pairs:
+                if pair.variable1 in heatmap_var_set and pair.variable2 in heatmap_var_set:
+                    real_m.setdefault(pair.variable1, {})[pair.variable2] = pair.realCorrelation
+                    real_m.setdefault(pair.variable2, {})[pair.variable1] = pair.realCorrelation
+                    syn_m.setdefault(pair.variable1,  {})[pair.variable2] = pair.syntheticCorrelation
+                    syn_m.setdefault(pair.variable2,  {})[pair.variable1] = pair.syntheticCorrelation
+
+            # Diagonal: Pearson r of a variable with itself is always 1.
+            for col in heatmap_vars:
+                if col in real_m:
+                    real_m[col][col] = 1.0
+                    syn_m[col][col]  = 1.0
+
+            real_corr_matrix = real_m
+            syn_corr_matrix  = syn_m
 
     # ── Categorical–Categorical: Cramér's V ───────────────────────────────────
     # Cramér's V measures association strength between two categorical columns.
@@ -100,6 +246,41 @@ def compute_multivariate_results(
                 difference=round(abs(real_v - syn_v), 4),
             ))
         cramers_pairs.sort(key=lambda pair: pair.difference, reverse=True)
+
+    # Build Cramér's V matrices for the heatmap.
+    # We run this outside the metric guard above so the variables list is
+    # always available — but only if there is at least one valid pair.
+    real_cramers_matrix: dict[str, dict[str, float]] | None = None
+    syn_cramers_matrix:  dict[str, dict[str, float]] | None = None
+    cramers_heatmap_note: str | None = None
+
+    if cramers_pairs:
+        # Pick the variables that carry the most diagnostic information.
+        heatmap_vars, cramers_heatmap_note = _select_active_cramers_vars(
+            cramers_pairs, categorical_cols, MAX_CRAMERS_HEATMAP_VARS
+        )
+        heatmap_var_set = set(heatmap_vars)
+
+        real_cm: dict[str, dict[str, float]] = {}
+        syn_cm:  dict[str, dict[str, float]] = {}
+
+        # Populate off-diagonal cells — only for pairs where both variables
+        # are in the selected set (avoids storing unused data).
+        for pair in cramers_pairs:
+            if pair.variable1 in heatmap_var_set and pair.variable2 in heatmap_var_set:
+                real_cm.setdefault(pair.variable1, {})[pair.variable2] = pair.realCramersV
+                real_cm.setdefault(pair.variable2, {})[pair.variable1] = pair.realCramersV
+                syn_cm.setdefault(pair.variable1,  {})[pair.variable2] = pair.syntheticCramersV
+                syn_cm.setdefault(pair.variable2,  {})[pair.variable1] = pair.syntheticCramersV
+
+        # Diagonal: Cramér's V of a variable with itself is 1.0 by definition.
+        for col in heatmap_vars:
+            if col in real_cm:
+                real_cm[col][col] = 1.0
+                syn_cm[col][col]  = 1.0
+
+        real_cramers_matrix = real_cm
+        syn_cramers_matrix  = syn_cm
 
     # ── Mixed: group-wise mean (numerical × categorical) ─────────────────────
     # For each (numerical, categorical) pair, break the numerical column into
@@ -140,4 +321,10 @@ def compute_multivariate_results(
         topCorrelationPairs=corr_pairs[:MULTIVARIATE_TOP_K],
         topCramersVPairs=cramers_pairs[:MULTIVARIATE_TOP_K],
         topGroupwiseRows=groupwise[:MULTIVARIATE_TOP_K],
+        realCorrelationMatrix=real_corr_matrix,
+        synCorrelationMatrix=syn_corr_matrix,
+        corrHeatmapNote=corr_heatmap_note if corr_pairs else None,
+        realCramersVMatrix=real_cramers_matrix,
+        synCramersVMatrix=syn_cramers_matrix,
+        cramersVHeatmapNote=cramers_heatmap_note,
     )

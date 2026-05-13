@@ -24,6 +24,8 @@ import ChartCard from "../components/dashboard/ChartCard";
 import ComparisonChart from "../components/dashboard/ComparisonChart";
 import DistributionChart from "../components/dashboard/DistributionChart";
 import MetricHeatmap from "../components/dashboard/MetricHeatmap";
+import CorrelationHeatmap from "../components/dashboard/CorrelationHeatmap";
+import CramersVHeatmap from "../components/dashboard/CramersVHeatmap";
 import { availableMetrics } from "../services/evaluationService";
 import { getVariableDisplayName } from "../utils/variableNames";
 import { getChartType } from "../utils/chartType";
@@ -112,11 +114,15 @@ export default function ResultsPage({
   const activeVariableType = variableRanking.find((v) => v.variable === activeVariable)?.type ?? "unknown";
   const activeChartType = selectedDetail?.chartType ?? getChartType(activeVariable, activeVariableType);
 
-  // Convert DetailViewSeries → ChartPoint for ComparisonChart
+  // Convert DetailViewSeries → ChartPoint; pass binLeft/binRight so DistributionChart can draw a proper histogram
   const chartPoints = selectedDetail?.series.map((s) => ({
     label:          s.label,
     realValue:      s.real,
     syntheticValue: s.synthetic,
+    binLeft:        s.binLeft,
+    binRight:       s.binRight,
+    realCount:      s.realCount,
+    syntheticCount: s.syntheticCount,
   })) ?? [];
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -431,6 +437,21 @@ export default function ResultsPage({
         </SectionCard>
       ) : null}
 
+      {/* Correlation difference heatmap — shown when full matrices are available */}
+      {mv?.realCorrelationMatrix && mv?.synCorrelationMatrix && (
+        <SectionCard
+          title="Numerical–Numerical: Correlation Difference Heatmap"
+          subtitle="Each cell shows |real Pearson r − synthetic Pearson r|. Darker red = larger difference. Hover for exact values."
+        >
+          <CorrelationHeatmap
+            variables={Object.keys(mv.realCorrelationMatrix)}
+            realMatrix={mv.realCorrelationMatrix}
+            synMatrix={mv.synCorrelationMatrix}
+            note={mv.corrHeatmapNote}
+          />
+        </SectionCard>
+      )}
+
       {/* Categorical–Categorical — only shown when backend returns data */}
       {mv?.topCramersVPairs?.length ? (
         <SectionCard
@@ -470,43 +491,96 @@ export default function ResultsPage({
         </SectionCard>
       ) : null}
 
-      {/* Mixed — only shown when backend returns data */}
-      {mv?.topGroupwiseRows?.length ? (
+      {/* Cramér's V difference heatmap — shown when matrices are available */}
+      {mv?.realCramersVMatrix && mv?.synCramersVMatrix && (
         <SectionCard
-          title="Mixed Analysis: Group-wise Summary"
-          subtitle="Mean of numerical variable per category group — top rows by largest difference shown first."
+          title="Categorical–Categorical: Cramér's V Difference Heatmap"
+          subtitle="Each cell shows |real Cramér's V − synthetic Cramér's V|. Darker red = larger difference. Hover for exact values."
         >
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Numerical variable</th>
-                <th>Grouped by</th>
-                <th>Real mean</th>
-                <th>Synthetic mean</th>
-                <th>Difference</th>
-                <th>% Change</th>
-              </tr>
-            </thead>
-            <tbody>
-              {mv.topGroupwiseRows.map((r, i) => {
-                const pct = r.realMean !== 0
-                  ? ((r.syntheticMean - r.realMean) / r.realMean * 100).toFixed(1)
-                  : null;
-                return (
-                  <tr key={i}>
-                    <td>{getVariableDisplayName(r.numericalVariable)}</td>
-                    <td>{getVariableDisplayName(r.categoricalVariable)}: {r.groupValue}</td>
-                    <td>{r.realMean.toFixed(1)}</td>
-                    <td>{r.syntheticMean.toFixed(1)}</td>
-                    <td>{r.difference.toFixed(1)}</td>
-                    <td>{pct !== null ? `${Number(pct) > 0 ? "+" : ""}${pct}%` : "—"}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <CramersVHeatmap
+            variables={Object.keys(mv.realCramersVMatrix)}
+            realMatrix={mv.realCramersVMatrix}
+            synMatrix={mv.synCramersVMatrix}
+            note={mv.cramersVHeatmapNote}
+          />
         </SectionCard>
-      ) : null}
+      )}
+
+      {/* Mixed — always render the card so users know this section exists */}
+      {(() => {
+        const metricSelected = analysisContext.selectedMetrics.includes(
+          "numerical_categorical_association"
+        );
+
+        if (mv?.topGroupwiseRows?.length) {
+          // Data is available — show the table.
+          return (
+            <SectionCard
+              title="Mixed Analysis: Group-wise Summary"
+              subtitle="Mean of numerical variable per category group — top rows by largest difference shown first."
+            >
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Numerical variable</th>
+                    <th>Grouped by</th>
+                    <th>Real mean</th>
+                    <th>Synthetic mean</th>
+                    <th>Difference</th>
+                    <th>% Change</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mv.topGroupwiseRows.map((r, i) => {
+                    const pct = r.realMean !== 0
+                      ? ((r.syntheticMean - r.realMean) / r.realMean * 100).toFixed(1)
+                      : null;
+                    return (
+                      <tr key={i}>
+                        <td>{getVariableDisplayName(r.numericalVariable)}</td>
+                        <td>{getVariableDisplayName(r.categoricalVariable)}: {r.groupValue}</td>
+                        <td>{r.realMean.toFixed(1)}</td>
+                        <td>{r.syntheticMean.toFixed(1)}</td>
+                        <td>{r.difference.toFixed(1)}</td>
+                        <td>{pct !== null ? `${Number(pct) > 0 ? "+" : ""}${pct}%` : "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </SectionCard>
+          );
+        }
+
+        if (metricSelected) {
+          // Metric was selected but no group had enough samples.
+          return (
+            <SectionCard
+              title="Mixed Analysis: Group-wise Summary"
+              subtitle="Mean of numerical variable per category group."
+            >
+              <p className="muted-copy">
+                No group had enough samples (minimum 5 rows per group) to produce
+                a reliable mean comparison. This can happen when category values
+                are rare in one or both datasets.
+              </p>
+            </SectionCard>
+          );
+        }
+
+        // Metric was not selected — guide the user to enable it.
+        return (
+          <SectionCard
+            title="Mixed Analysis: Group-wise Summary"
+            subtitle="Mean of numerical variable per category group."
+          >
+            <p className="muted-copy">
+              Select <strong>Numerical–Categorical Association</strong> on the
+              Setup page and re-run the evaluation to enable this analysis.
+            </p>
+          </SectionCard>
+        );
+      })()}
 
       {/* ── Section 6: Insights ────────────────────────────────────────────── */}
       <SectionCard

@@ -35,6 +35,54 @@ KNOWN_ID_COLS: set[str] = {
     "patient_nbr",
 }
 
+# Keyword lists for automatic variable group inference in _infer_display_group().
+# Groups are checked in the order defined here (dict insertion order is preserved in Python 3.7+).
+# Each column name is lowercased before matching, so keywords should be lowercase.
+# Columns that do not match any group fall back to "Other / Review".
+GROUP_KEYWORDS: dict[str, list[str]] = {
+    "Patient": [
+        "age", "gender", "sex", "race", "weight", "height", "bmi", "birth", "ethnic",
+        "demographic", "marital",
+    ],
+    "Lab / Test": [
+        # Diabetes-specific lab terms
+        "a1c", "max_glu", "glu_serum", "serum", "hba1c", "a1cresult",
+        # Common biomarkers for other datasets (heart disease, cancer, etc.)
+        "cholesterol", "glucose", "hemoglobin", "creatinine", "platelet",
+        "troponin", "sodium", "potassium", "calcium", "albumin", "bilirubin",
+        "triglyceride", "hdl", "ldl", "urea", "uric", "ferritin",
+        "wbc", "rbc", "hematocrit", "inr", "ptt",
+        # Generic patterns common in lab result column names
+        "_result", "_level",
+    ],
+    "Medication": [
+        # Diabetes-specific drug names
+        "metformin", "repaglinide", "nateglinide", "chlorpropamide", "glimepiride",
+        "acetohexamide", "glipizide", "glyburide", "tolbutamide", "pioglitazone",
+        "rosiglitazone", "acarbose", "miglitol", "troglitazone", "tolazamide",
+        "examide", "citoglipton", "insulin", "glyburide-metformin", "glipizide-metformin",
+        "glimepiride-pioglitazone", "metformin-rosiglitazone", "metformin-pioglitazone",
+        # Generic medication terms
+        "medication", "drug", "dosage", "dose", "prescription", "therapy",
+    ],
+    "Outcome": [
+        "readmit", "diabetesmed", "outcome", "mortality", "death",
+        "survival", "expired", "deceased", "complication",
+    ],
+    "Clinical / Encounter": [
+        "admission", "discharge", "encounter", "hospital", "procedure",
+        "diag", "diagnosis", "payer", "specialty", "num_", "number_of",
+        "time_in", "days_in", "visit",
+    ],
+}
+
+# Exact-match overrides applied before GROUP_KEYWORDS substring search.
+# "change" is kept here because it is too short to use as a substring —
+# substring search would incorrectly match unrelated columns like "age_change".
+GROUP_EXACT_COLS: dict[str, str] = {
+    "change": "Outcome",
+}
+
 # Chi-square becomes unreliable when categories are too sparse (expected cell counts < 5).
 # 50 is a conservative ceiling; columns with more unique values are silently skipped.
 CHI_SQUARE_MAX_CATEGORIES = 50
@@ -44,6 +92,17 @@ CHI_SQUARE_MAX_CATEGORIES = 50
 # slow down the JSON response. The top-K are sorted by largest difference first so the most
 # problematic pairs always surface.
 MULTIVARIATE_TOP_K = 5
+
+# Maximum number of categorical variables included in the Cramér's V heatmap.
+# Variables are chosen by "activity score" (how often they appear in high-difference
+# pairs) rather than alphabetically — so the heatmap always shows the associations
+# that diverged most between real and synthetic data.
+MAX_CRAMERS_HEATMAP_VARS = 15
+
+# Maximum number of numerical variables included in the Pearson correlation heatmap.
+# Variables are chosen by activity score (same logic as Cramér's V) so the heatmap
+# always highlights the numerical relationships that diverged most.
+MAX_CORR_HEATMAP_VARS = 12
 
 # Metric catalogue sent to GET /metrics — mirrors availableMetrics in evaluationService.ts.
 # Keeping this list here (not in the router) means the router stays thin and the catalogue

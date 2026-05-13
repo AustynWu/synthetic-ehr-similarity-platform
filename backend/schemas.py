@@ -108,6 +108,14 @@ class ValidationIssue(BaseModel):
 class AvailableColumn(BaseModel):
     columnName: str
     dataType: DataTypeLabel
+    displayGroup: str = "Other / Review"
+
+# Columns that exist in both datasets but cannot be used in metric calculation.
+# Sent to the frontend so the UI can show users why a column was excluded.
+class ExcludedColumn(BaseModel):
+    columnName: str
+    dataType: DataTypeLabel   # datetime / text / unknown
+    reason: str               # plain English explanation shown in the UI
 
 class ValidationSummary(BaseModel):
     realDataset: DatasetBasicSummary
@@ -115,7 +123,8 @@ class ValidationSummary(BaseModel):
     matchedColumnCount: int
     unmatchedColumnCount: int
     schemaComparison: list[SchemaComparisonRow]
-    availableColumns: list[AvailableColumn]  # full column list for Setup page
+    availableColumns: list[AvailableColumn]    # columns available for metric calculation
+    excludedColumns: list[ExcludedColumn] = [] # columns present but excluded from analysis
     issues: list[ValidationIssue]
     canProceed: bool
 
@@ -172,9 +181,13 @@ class MetricMatrix(BaseModel):
     cells: list[MetricMatrixCell]      # sparse — missing cell = metric does not apply
 
 class DetailViewSeries(BaseModel):
-    label: str                         # e.g. "NO", ">30", "1-3 days"
+    label: str                         # category name (categorical) or bin range string (numerical)
     real: float                        # proportion 0-1
     synthetic: float
+    binLeft: Optional[float] = None    # numerical bins only — left edge of the bin
+    binRight: Optional[float] = None   # numerical bins only — right edge of the bin
+    realCount: Optional[int] = None    # actual row count in real data for this bin/category
+    syntheticCount: Optional[int] = None  # actual row count in synthetic data
 
 class DetailViewMetric(BaseModel):
     name: EvaluationMetric
@@ -218,6 +231,20 @@ class MultivariateResults(BaseModel):
     topCorrelationPairs: list[CorrelationPair]   # Numerical–Numerical
     topCramersVPairs: list[CramersVPair]         # Categorical–Categorical
     topGroupwiseRows: list[GroupwiseSummaryRow]  # Mixed
+    # Full correlation matrices — outer key = variable, inner key = other variable → Pearson r.
+    # Optional so old cached results without these fields still deserialise correctly.
+    realCorrelationMatrix: Optional[dict[str, dict[str, float]]] = None
+    synCorrelationMatrix:  Optional[dict[str, dict[str, float]]] = None
+    # Cramér's V matrices — only the top MAX_CRAMERS_HEATMAP_VARS variables are included.
+    # Variables are chosen by activity score (how often they appear in high-difference pairs)
+    # so the heatmap always highlights the associations that diverged most.
+    realCramersVMatrix:   Optional[dict[str, dict[str, float]]] = None
+    synCramersVMatrix:    Optional[dict[str, dict[str, float]]] = None
+    # Plain-English note explaining which variables were selected and why.
+    # Displayed in the UI so the user understands the variable selection logic.
+    cramersVHeatmapNote: Optional[str] = None
+    # Same note for the Pearson correlation heatmap.
+    corrHeatmapNote: Optional[str] = None
 
 
 class EvaluationResult(BaseModel):

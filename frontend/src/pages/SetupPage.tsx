@@ -9,7 +9,7 @@
 // Unimplemented metrics (implemented: false) are shown but disabled — visible
 // as MVP roadmap items but cannot be sent to the backend.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import PageSection from "../components/ui/PageSection";
 import SectionCard from "../components/ui/SectionCard";
 import SummaryCard from "../components/ui/SummaryCard";
@@ -57,36 +57,12 @@ const METRIC_GROUPS: { group: MetricGroup; subgroups: MetricSubgroup[] }[] = [
   },
 ];
 
-// Column groups for diabetic_data.csv — encounter_id and patient_nbr are omitted (ID columns should not be evaluated)
-// Static for prototype; backend API will provide groupings in production.
-const variableGroups = [
-  {
-    label: "Patient",
-    variables: ["race", "gender", "age", "weight", "max_glu_serum", "A1Cresult"],
-  },
-  {
-    label: "Clinical",
-    variables: ["admission_type_id", "discharge_disposition_id", "admission_source_id", "payer_code", "medical_specialty", "time_in_hospital", "num_lab_procedures", "num_procedures", "num_medications", "number_outpatient", "number_emergency", "number_inpatient", "number_diagnoses", "diag_1", "diag_2", "diag_3"],
-  },
-  {
-    label: "Medication",
-    variables: ["metformin", "repaglinide", "nateglinide", "chlorpropamide", "glimepiride", "acetohexamide", "glipizide", "glyburide", "tolbutamide", "pioglitazone", "rosiglitazone", "acarbose", "miglitol", "troglitazone", "tolazamide", "examide", "citoglipton", "insulin", "glyburide-metformin", "glipizide-metformin", "glimepiride-pioglitazone", "metformin-rosiglitazone", "metformin-pioglitazone"],
-  },
-  {
-    label: "Outcome",
-    variables: ["change", "diabetesMed", "readmitted"],
-  },
-];
+// Display order for groups returned by the backend
+const GROUP_ORDER = ["Patient", "Lab / Test", "Clinical / Encounter", "Medication", "Outcome", "Other / Review"];
 
 // Max variables the backend can handle in one evaluation run
 const MAX_VARIABLES = 30;
 
-// Suggested default columns (representative subset — no need to select all)
-const suggestedVariables = [
-  "race", "gender", "age", "time_in_hospital",
-  "num_lab_procedures", "num_medications", "number_diagnoses",
-  "A1Cresult", "insulin", "readmitted",
-];
 
 export default function SetupPage({
   validationSummary,
@@ -123,18 +99,54 @@ export default function SetupPage({
     );
   }
 
-  // Initialise selected columns:
-  // If a previous selection exists, restore it; otherwise use the suggested defaults.
-  const initialSelectedColumns =
-    evaluationConfig.selectedColumns.length > 0
-      ? evaluationConfig.selectedColumns
-      : suggestedVariables;
+  // Local config state — restore previous column selection if it exists, otherwise start empty
+  const [config, setConfig] = useState<EvaluationConfig>(evaluationConfig);
 
-  // Local config state (copy of evaluationConfig with initialised columns)
-  const [config, setConfig] = useState<EvaluationConfig>({
-    ...evaluationConfig,
-    selectedColumns: initialSelectedColumns,
-  });
+  // Auto-select a sensible default set of columns when the user first arrives with no selection.
+  // Picks up to 2 columns per group (following GROUP_ORDER), capped at 10 total,
+  // and skips any column with >= 50% real missing rate.
+  useEffect(() => {
+    if (!validationSummary) return;
+
+    // Build a missing-rate lookup from schemaComparison (may be a subset of all columns).
+    // Columns absent from the map default to 0% — safe since availableColumns already filters problem columns.
+    const missingRateMap = new Map<string, number>(
+      validationSummary.schemaComparison.map((r) => [r.columnName, r.realMissingRate])
+    );
+
+    // Keep only columns with < 50% real missing rate, grouped by displayGroup.
+    const byGroup = new Map<string, string[]>();
+    for (const col of validationSummary.availableColumns) {
+      const missing = missingRateMap.get(col.columnName) ?? 0;
+      if (missing >= 50) continue;
+      const grp = col.displayGroup ?? "Other / Review";
+      if (!byGroup.has(grp)) byGroup.set(grp, []);
+      byGroup.get(grp)!.push(col.columnName);
+    }
+
+    // Follow GROUP_ORDER, then any extra groups not in the order list.
+    const orderedGroups = [
+      ...GROUP_ORDER.filter((g) => byGroup.has(g)),
+      ...Array.from(byGroup.keys()).filter((k) => !GROUP_ORDER.includes(k)),
+    ];
+
+    const PER_GROUP = 2;
+    const MAX_DEFAULT = 10;
+    const selected: string[] = [];
+    for (const label of orderedGroups) {
+      if (selected.length >= MAX_DEFAULT) break;
+      const cols = byGroup.get(label) ?? [];
+      selected.push(...cols.slice(0, Math.min(PER_GROUP, MAX_DEFAULT - selected.length)));
+    }
+
+    if (selected.length === 0) return;
+
+    // Only apply if the user hasn't already made a selection.
+    setConfig((current) => {
+      if (current.selectedColumns.length > 0) return current;
+      return { ...current, selectedColumns: selected };
+    });
+  }, [validationSummary]);
 
   // Toggle one metric on/off
   const toggleMetric = (metric: EvaluationMetric) => {
@@ -229,11 +241,23 @@ export default function SetupPage({
   // Search box value for filtering column chips
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Full column list from the validation result — used to filter out columns the backend doesn't know about
-  const allColumns = useMemo(
-    () => validationSummary.availableColumns.map((col) => col.columnName),
-    [validationSummary]
-  );
+  // Build variable groups dynamically from the backend-supplied displayGroup field
+  const variableGroups = useMemo(() => {
+    const groupMap = new Map<string, string[]>();
+    for (const col of validationSummary.availableColumns) {
+      const group = col.displayGroup ?? "Other / Review";
+      if (!groupMap.has(group)) groupMap.set(group, []);
+      groupMap.get(group)!.push(col.columnName);
+    }
+    const result: { label: string; variables: string[] }[] = [];
+    for (const label of GROUP_ORDER) {
+      if (groupMap.has(label)) result.push({ label, variables: groupMap.get(label)! });
+    }
+    for (const [label, variables] of groupMap) {
+      if (!GROUP_ORDER.includes(label)) result.push({ label, variables });
+    }
+    return result;
+  }, [validationSummary]);
 
   // Warn when selected columns have no applicable metric.
   // e.g. user picks only numerical metrics but also selects categorical columns — those columns produce no results.
@@ -294,10 +318,9 @@ export default function SetupPage({
           </div>
 
           {variableGroups.map((group) => {
-            // Filter to columns the backend knows about, then apply the search query
+            // Apply the search query — backend already filtered to valid columns
             const cols = group.variables.filter(
-              (v) => allColumns.includes(v) &&
-                     v.toLowerCase().includes(searchQuery.toLowerCase())
+              (v) => v.toLowerCase().includes(searchQuery.toLowerCase())
             );
             if (cols.length === 0) return null;
             return (
@@ -343,6 +366,34 @@ export default function SetupPage({
               </div>
             );
           })}
+
+          {/* Excluded columns — shown for transparency, cannot be selected */}
+          {validationSummary.excludedColumns.length > 0 && (
+            <div className="variable-group-section excluded-columns-section">
+              <div className="variable-group-header">
+                <div className="variable-group-label excluded-group-label">
+                  Excluded from analysis ({validationSummary.excludedColumns.length})
+                </div>
+              </div>
+              <p className="excluded-columns-note">
+                These columns exist in both datasets but cannot be used in metric calculation.
+              </p>
+              <div className="variable-chip-grid">
+                {validationSummary.excludedColumns
+                  .filter((c) => c.columnName.toLowerCase().includes(searchQuery.toLowerCase()))
+                  .map((c) => (
+                    // span instead of button — disabled buttons block pointer events so title tooltip never fires
+                    <span
+                      key={c.columnName}
+                      className="variable-chip excluded"
+                      title={`${c.columnName} — ${c.reason}`}
+                    >
+                      {getVariableDisplayName(c.columnName)}
+                    </span>
+                  ))}
+              </div>
+            </div>
+          )}
         </SectionCard>
       </PageSection>
 

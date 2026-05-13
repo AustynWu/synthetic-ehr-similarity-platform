@@ -456,6 +456,49 @@ p {
     overflow-wrap: break-word !important;
   }
 
+  /* remove horizontal padding from app-content so heatmaps get the full page width */
+  .app-content {
+    padding: 8px 0 !important;
+  }
+
+  /* prevent summary cards from being split across a page break */
+  .summary-card {
+    break-inside: avoid !important;
+    padding: 10px 12px !important;
+  }
+  .summary-card h3 {
+    font-size: 1.2rem !important;
+  }
+
+  /* Metric matrix: unlock overflow so all columns print */
+  .heatmap-scroll-wrapper {
+    overflow: visible !important;
+  }
+  /* allow long column headers to wrap so the table stays within page width */
+  .heatmap-col-header {
+    white-space: normal !important;
+    word-break: break-all !important;
+    max-width: 70px !important;
+    font-size: 0.55rem !important;
+    padding: 3px 4px !important;
+  }
+  .heatmap-row-header {
+    white-space: normal !important;
+    word-break: break-word !important;
+    max-width: 110px !important;
+    font-size: 0.6rem !important;
+    padding: 3px 6px !important;
+  }
+  .heatmap-cell {
+    font-size: 0.6rem !important;
+    padding: 4px 5px !important;
+  }
+
+  /* Correlation / Cramér's V diff heatmap: unlock overflow */
+  .diff-heatmap-wrapper {
+    overflow: visible !important;
+  }
+
   /* single column on narrow paper, 2-col on A4 landscape */
   @page {
     size: A4 landscape;
@@ -997,6 +1040,27 @@ p {
   cursor: not-allowed;
 }
 
+/* Excluded chip — greyed out with strikethrough to signal it cannot be selected */
+.variable-chip.excluded {
+  opacity: 0.45;
+  cursor: default;
+  text-decoration: line-through;
+  border-style: dashed;
+}
+
+/* Label for the excluded section — uses muted colour to de-emphasise */
+.excluded-group-label {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Explanation text below the excluded section header */
+.excluded-columns-note {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin: 0 0 8px 0;
+}
+
 .variable-selection-count.over-limit {
   color: var(--danger);
   font-weight: 600;
@@ -1154,6 +1218,14 @@ p {
   font-weight: 400;   /* normal weight — contrasts with strong's 600 */
   color: var(--text-soft); /* grey — unobtrusive */
   margin-left: 6px;
+}
+
+/* Small clarifying note inline with a stat label, e.g. "(≥ 1 empty cell)" */
+.stat-label-note {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-left: 4px;
 }
 
 @media (max-width: 720px) {

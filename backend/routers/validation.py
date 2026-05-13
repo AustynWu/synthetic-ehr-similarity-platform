@@ -9,13 +9,36 @@ from fastapi import APIRouter, HTTPException
 
 from schemas import (
     DatasetBasicSummary, SchemaComparisonRow, SchemaStatus,
-    ValidationIssue, AvailableColumn, ValidationSummary, ValidateRequest, DataTypeLabel,
+    ValidationIssue, AvailableColumn, ExcludedColumn, ValidationSummary, ValidateRequest, DataTypeLabel,
 )
-from constants import NULL_VALUES, KNOWN_ID_COLS
+from constants import NULL_VALUES, KNOWN_ID_COLS, GROUP_KEYWORDS, GROUP_EXACT_COLS
 from services.type_inference import infer_type
 import state
 
 router = APIRouter()
+
+
+def _exclusion_reason(data_type: DataTypeLabel, col_name: str) -> str:
+    """Return a plain English reason why this column was excluded from metric calculation."""
+    if data_type == DataTypeLabel.unknown:
+        return "Column is a unique identifier or its type could not be determined."
+    if data_type == DataTypeLabel.datetime:
+        return "Datetime columns are not yet supported in metric calculation."
+    if data_type == DataTypeLabel.text:
+        return "Free-text columns cannot be compared with statistical metrics."
+    return "Column type is not supported for metric calculation."
+
+
+def _infer_display_group(col_name: str) -> str:
+    name = col_name.lower()
+    # Exact match first — prevents short keywords from matching unrelated column names.
+    if name in GROUP_EXACT_COLS:
+        return GROUP_EXACT_COLS[name]
+    # Substring match in priority order (Patient → Lab/Test → Medication → Outcome → Clinical).
+    for group, keywords in GROUP_KEYWORDS.items():
+        if any(k in name for k in keywords):
+            return group
+    return "Other / Review"
 
 
 @router.post("/datasets/validate", response_model=ValidationSummary)
@@ -65,29 +88,29 @@ def validate_datasets(req: ValidateRequest):
         real_missing = round(real_df[col].isnull().mean() * 100, 2) if in_real else 0.0
         syn_missing  = round(syn_df[col].isnull().mean() * 100, 2)  if in_syn  else 0.0
 
-        # Determine schema status and create an issue for any problem found.
+        # Determine schema status and attach an actionable message for each problem found.
         if not in_syn:
             status = SchemaStatus.missing_in_synthetic
             issues.append(ValidationIssue(level="warning", code="MISSING_IN_SYNTHETIC",
-                          message=f"Column '{col}' exists in real data but not in synthetic."))
+                          message=f"Column '{col}' exists in real data but not in synthetic — it will be excluded from evaluation."))
         elif not in_real:
             status = SchemaStatus.missing_in_real
             issues.append(ValidationIssue(level="warning", code="MISSING_IN_REAL",
-                          message=f"Column '{col}' exists in synthetic data but not in real."))
+                          message=f"Column '{col}' exists in synthetic data but not in real — it will be excluded from evaluation."))
         elif real_type != syn_type:
             status = SchemaStatus.type_mismatch
             issues.append(ValidationIssue(level="warning", code="TYPE_MISMATCH",
-                          message=f"Column '{col}' type differs: real={real_type.value}, synthetic={syn_type.value}."))
+                          message=f"Column '{col}' has a type mismatch (real: {real_type.value}, synthetic: {syn_type.value}) — metric results for this column may be unreliable."))
         else:
             status = SchemaStatus.matched
 
-        # Warn if missingness is high — these columns will produce less reliable metric scores.
+        # High missingness reduces statistical reliability — warn the user so they can interpret results carefully.
         if real_missing > 20:
             issues.append(ValidationIssue(level="warning", code="HIGH_MISSINGNESS",
-                          message=f"Column '{col}' has {real_missing:.1f}% missing values in real data."))
+                          message=f"Column '{col}' has {real_missing:.1f}% missing values in real data — similarity results for this column should be interpreted carefully."))
         if syn_missing > 20:
             issues.append(ValidationIssue(level="warning", code="HIGH_MISSINGNESS_SYNTHETIC",
-                          message=f"Column '{col}' has {syn_missing:.1f}% missing values in synthetic data."))
+                          message=f"Column '{col}' has {syn_missing:.1f}% missing values in synthetic data — similarity results for this column should be interpreted carefully."))
 
         schema_rows.append(SchemaComparisonRow(
             id=f"col-{col}", columnName=col,
@@ -114,16 +137,39 @@ def validate_datasets(req: ValidateRequest):
     # ID columns are excluded because they have no analytical value.
     # text/datetime/unknown columns are excluded because no current metric handles them.
     available = [
-        AvailableColumn(columnName=col, dataType=real_type_cache[col])
+        AvailableColumn(columnName=col, dataType=real_type_cache[col],
+                        displayGroup=_infer_display_group(col))
         for col in sorted(matched_cols)
         if col not in KNOWN_ID_COLS
         and real_type_cache[col] in (DataTypeLabel.numerical, DataTypeLabel.categorical)
     ]
 
+    # excludedColumns: shared columns that were filtered out of availableColumns.
+    # Sent to the frontend so users can see why a column is missing from the selection list.
+    excluded = [
+        ExcludedColumn(
+            columnName=col,
+            dataType=real_type_cache[col],
+            reason=_exclusion_reason(real_type_cache[col], col),
+        )
+        for col in sorted(matched_cols)
+        if col not in KNOWN_ID_COLS
+        and real_type_cache[col] not in (DataTypeLabel.numerical, DataTypeLabel.categorical)
+    ]
+    # Also include known ID columns so the frontend can display them as excluded.
+    for col in sorted(matched_cols):
+        if col in KNOWN_ID_COLS:
+            excluded.append(ExcludedColumn(
+                columnName=col,
+                dataType=DataTypeLabel.unknown,
+                reason="Column is a unique identifier and is excluded from analysis.",
+            ))
+
     return ValidationSummary(
         realDataset=real_summary, syntheticDataset=syn_summary,
         matchedColumnCount=len(matched_cols), unmatchedColumnCount=unmatched,
         schemaComparison=schema_rows, availableColumns=available,
+        excludedColumns=excluded,
         issues=issues,
         # False only when at least one error-level issue exists; warnings/info still allow proceeding.
         canProceed=not any(issue.level == "error" for issue in issues),

@@ -96,6 +96,14 @@ export interface ValidationIssue {
   message: string; // human-readable explanation
 }
 
+// A column that exists in both datasets but was excluded from metric calculation.
+// Shown in the Setup page so users understand why a column is missing from the selection list.
+export interface ExcludedColumn {
+  columnName: string;
+  dataType: DataTypeLabel; // datetime | text | unknown
+  reason: string;          // plain English explanation
+}
+
 // Full validation result shown on the Validation page
 export interface ValidationSummary {
   realDataset: DatasetBasicSummary;
@@ -103,7 +111,8 @@ export interface ValidationSummary {
   matchedColumnCount: number;
   unmatchedColumnCount: number;
   schemaComparison: SchemaComparisonRow[]; // representative subset — problem columns + a few clean ones
-  availableColumns: { columnName: string; dataType: DataTypeLabel }[]; // full column list for Setup page
+  availableColumns: { columnName: string; dataType: DataTypeLabel; displayGroup: string }[]; // columns available for metric calculation
+  excludedColumns: ExcludedColumn[]; // columns present in both datasets but excluded from analysis
   issues: ValidationIssue[];
   canProceed: boolean;
 }
@@ -217,11 +226,16 @@ export interface EvaluationConfig {
 
 // ── Evaluation result types ────────────────────────────────
 
-// Used by ComparisonChart to render paired bars
+// Used by ComparisonChart and DistributionChart to render paired bars.
+// binLeft / binRight are only present for numerical histogram bins.
 export interface ChartPoint {
   label: string;
   realValue: number;
   syntheticValue: number;
+  binLeft?: number;
+  binRight?: number;
+  realCount?: number;
+  syntheticCount?: number;
 }
 
 // Top-level summary scores shown in the 6 summary cards
@@ -269,9 +283,13 @@ export interface MetricMatrix {
 
 // One bar in a detail view chart (category label or histogram bin)
 export interface DetailViewSeries {
-  label: string;    // e.g. "NO", ">30", "1-3 days"
-  real: number;     // proportion 0-1
+  label: string;      // category name (categorical) or bin range string e.g. "13–26" (numerical)
+  real: number;       // proportion 0-1
   synthetic: number;
+  binLeft?: number;   // numerical bins only — left edge of the bin
+  binRight?: number;  // numerical bins only — right edge of the bin
+  realCount?: number;      // actual row count in real data for this bin/category
+  syntheticCount?: number; // actual row count in synthetic data
 }
 
 // One metric score shown in the detail panel
@@ -326,6 +344,16 @@ export interface MultivariateResults {
   topCorrelationPairs: CorrelationPair[];   // Numerical–Numerical
   topCramersVPairs: CramersVPair[];         // Categorical–Categorical
   topGroupwiseRows: GroupwiseSummaryRow[];  // Mixed
+  // Full correlation matrices for heatmap rendering — absent on old cached results
+  realCorrelationMatrix?: Record<string, Record<string, number>>;
+  synCorrelationMatrix?:  Record<string, Record<string, number>>;
+  // Cramér's V matrices — only top MAX_CRAMERS_HEATMAP_VARS variables by activity score
+  realCramersVMatrix?:   Record<string, Record<string, number>>;
+  synCramersVMatrix?:    Record<string, Record<string, number>>;
+  // Backend-generated explanation of which variables were chosen for the heatmap and why
+  cramersVHeatmapNote?:  string;
+  // Same note for the Pearson correlation heatmap
+  corrHeatmapNote?:      string;
 }
 
 // Complete evaluation result returned by the backend (or mock)

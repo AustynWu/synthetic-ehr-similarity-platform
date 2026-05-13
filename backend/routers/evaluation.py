@@ -252,11 +252,24 @@ def run_evaluation(req: RunEvaluationRequest):
 
     # active_metrics: deduplicated list of metrics that produced at least one result.
     # Used for metricsUsed count and to populate the metric matrix column headers.
-    active_metrics = list({
+    # Sorted by type group: Numerical → Categorical → Correlation/Multivariate
+    # so the matrix columns always appear in the same logical order.
+    _METRIC_ORDER = [
+        EvaluationMetric.mean_difference,
+        EvaluationMetric.ks_test,
+        EvaluationMetric.wasserstein_distance,
+        EvaluationMetric.chi_square,
+        EvaluationMetric.category_proportion_difference,
+        EvaluationMetric.correlation_difference,
+        EvaluationMetric.numerical_categorical_association,
+        EvaluationMetric.cramers_v_comparison,
+    ]
+    _used = {
         metric
         for col in selected
         for metric in raw_results[col]
-    })
+    }
+    active_metrics = [m for m in _METRIC_ORDER if m in _used]
 
     summary = EvaluationSummary(
         overallSimilarityScore=overall,
@@ -275,7 +288,14 @@ def run_evaluation(req: RunEvaluationRequest):
         selectedMetrics=config.selectedMetrics,
     )
 
-    # ── Step 9: automated insights ────────────────────────────────────────────
+    # ── Step 9: multivariate analysis (must run before insights) ────────────
+    # Moved before insights so correlation / Cramér's V pair data is available
+    # when building the insight sentences that name specific variable pairs.
+    multivariate_results = compute_multivariate_results(
+        real_df, syn_df, numerical_cols, categorical_cols, config.selectedMetrics
+    )
+
+    # ── Step 10: automated insights ───────────────────────────────────────────
     # Reminders are short factual lines shown at the top of the dashboard.
     # Insights are interpretive sentences that guide the user toward action.
     reminders = [
@@ -287,6 +307,19 @@ def run_evaluation(req: RunEvaluationRequest):
     if poor_vars:
         reminders.append(f"Poor similarity detected in: {', '.join(poor_vars[:5])}.")
 
+    # Build a lookup: variable → the metric item with the lowest normalised score.
+    # Used below to name the specific failing metric for poor variables.
+    worst_metric_lookup: dict[str, tuple[str, float]] = {}
+    for col in selected:
+        univariate = {
+            metric: result
+            for metric, result in raw_results[col].items()
+            if metric not in _CROSS_VARIABLE_METRICS
+        }
+        if univariate:
+            worst_m = min(univariate, key=lambda m: univariate[m][1])
+            worst_metric_lookup[col] = (worst_m.value, round(univariate[worst_m][1], 2))
+
     insights: list[str] = []
 
     # Overall score insight — one sentence always present to anchor interpretation.
@@ -297,18 +330,32 @@ def run_evaluation(req: RunEvaluationRequest):
     else:
         insights.append("Low overall similarity. Significant differences between real and synthetic distributions were detected.")
 
-    # Poor variable list — cap at 5 names to keep the message readable.
+    # Poor variables — name the top 3 with their score and weakest metric so the
+    # user knows exactly which variable to fix and why it scored poorly.
     if poor_vars:
-        names  = ", ".join(poor_vars[:5])
-        suffix = f" (and {len(poor_vars) - 5} more)" if len(poor_vars) > 5 else ""
-        insights.append(f"Poor similarity in: {names}{suffix} — prioritise these variables for regeneration.")
+        detail_parts = []
+        for var in poor_vars[:3]:
+            score = next((r.similarityScore for r in ranking if r.variable == var), None)
+            if score is not None and var in worst_metric_lookup:
+                metric_name, _ = worst_metric_lookup[var]
+                # Convert snake_case metric key to a readable label.
+                readable = metric_name.replace("_", " ").title()
+                detail_parts.append(f"{var} (score {score:.2f}, weakest: {readable})")
+            elif score is not None:
+                detail_parts.append(f"{var} (score {score:.2f})")
+            else:
+                detail_parts.append(var)
+        suffix = f" (and {len(poor_vars) - 3} more)" if len(poor_vars) > 3 else ""
+        insights.append(
+            f"Poor similarity detected in: {'; '.join(detail_parts)}{suffix}. "
+            "Prioritise these variables for regeneration."
+        )
 
     # All-good message — only shown when every variable is "good" (no moderate either).
     if ranking and not poor_vars and not any(r.status == "moderate" for r in ranking):
         insights.append("All selected variables show good similarity — no targeted fixes needed.")
 
     # Numerical vs categorical gap — a 0.15 difference is meaningful enough to flag.
-    # The message text depends on which type scores lower, to give a directional hint.
     num_score = summary.numericalSimilarityScore
     cat_score = summary.categoricalSimilarityScore
     if num_score is not None and cat_score is not None and abs(num_score - cat_score) >= 0.15:
@@ -325,7 +372,8 @@ def run_evaluation(req: RunEvaluationRequest):
                else "category proportions differ more than distribution shapes.")
         )
 
-    # Relationship / correlation degradation — 0.70 threshold signals notable loss.
+    # Relationship / correlation degradation — name the worst pair so the user
+    # knows which specific relationship to investigate.
     rel_score = summary.relationshipSimilarityScore
     if rel_score is not None and rel_score < 0.70:
         insights.append(
@@ -333,21 +381,48 @@ def run_evaluation(req: RunEvaluationRequest):
             "multivariate dependencies in the synthetic data differ from the real dataset."
         )
 
-    # High-missing variables warning — scores for these columns may be unreliable
-    # because a large fraction of rows were dropped or imputed before the metric ran.
+    # Top correlation pair — always shown when correlation pairs exist, regardless of
+    # the overall relationship score, because a single bad pair can be important
+    # even when the average score looks acceptable.
+    top_corr = (multivariate_results.topCorrelationPairs or [])
+    if top_corr:
+        p = top_corr[0]
+        insights.append(
+            f"Largest Pearson r shift: {p.variable1} × {p.variable2} "
+            f"(real r = {p.realCorrelation:.2f}, synthetic r = {p.syntheticCorrelation:.2f}, |Δr| = {p.difference:.2f})."
+        )
+
+    # Top Cramér's V pair — same rationale as the correlation pair above.
+    top_cramers = (multivariate_results.topCramersVPairs or [])
+    if top_cramers:
+        p = top_cramers[0]
+        insights.append(
+            f"Largest Cramér's V shift: {p.variable1} × {p.variable2} "
+            f"(real V = {p.realCramersV:.2f}, synthetic V = {p.syntheticCramersV:.2f}, |ΔV| = {p.difference:.2f})."
+        )
+
+    # High-missing variables (≥ 50%) — scores may not be meaningful at all.
     high_missing = [r.variable for r in ranking if r.realMissingRate >= 50]
     if high_missing:
         names  = ", ".join(high_missing[:3])
         suffix = f" (and {len(high_missing) - 3} more)" if len(high_missing) > 3 else ""
         insights.append(
-            f"{names}{suffix} {'has' if len(high_missing) == 1 else 'have'} very high missing rates in the real dataset — "
-            "their similarity scores may not be meaningful."
+            f"{names}{suffix} {'has' if len(high_missing) == 1 else 'have'} very high missing rates (≥ 50%) "
+            "in the real dataset — their similarity scores may not be meaningful."
         )
 
-    # ── Step 10: multivariate analysis ───────────────────────────────────────
-    multivariate_results = compute_multivariate_results(
-        real_df, syn_df, numerical_cols, categorical_cols, config.selectedMetrics
-    )
+    # Moderate-missing variables (20–49%) — flag as a softer caution.
+    moderate_missing = [
+        r.variable for r in ranking
+        if 20 <= r.realMissingRate < 50
+    ]
+    if moderate_missing:
+        names  = ", ".join(moderate_missing[:3])
+        suffix = f" (and {len(moderate_missing) - 3} more)" if len(moderate_missing) > 3 else ""
+        insights.append(
+            f"{names}{suffix} {'has' if len(moderate_missing) == 1 else 'have'} moderate missing rates "
+            f"(20–49%) in the real dataset — interpret their scores with caution."
+        )
 
     return EvaluationResult(
         runId=f"run-{uuid.uuid4().hex[:8]}",

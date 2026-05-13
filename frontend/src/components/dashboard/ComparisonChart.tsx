@@ -24,23 +24,30 @@ const SYNTHETIC_COLOR = "#f97316"; // orange — matches DistributionChart
 
 function CustomTooltip({ active, payload, label }: TooltipProps<number, string>) {
   if (!active || !payload?.length) return null;
+  const raw = payload[0]?.payload as { realCount?: number; syntheticCount?: number };
   return (
     <div className="chart-tooltip">
       <p className="chart-tooltip-label">{label}</p>
-      {payload.map((entry) => (
-        <p key={entry.name} style={{ color: entry.color }}>
-          {entry.name}: {((entry.value ?? 0) * 100).toFixed(1)}%
-        </p>
-      ))}
+      {payload.map((entry) => {
+        const count = entry.name === "Real" ? raw?.realCount : raw?.syntheticCount;
+        return (
+          <p key={entry.name} style={{ color: entry.color }}>
+            {entry.name}: {((entry.value ?? 0) * 100).toFixed(1)}%
+            {count != null ? ` (n=${count.toLocaleString()})` : ""}
+          </p>
+        );
+      })}
     </div>
   );
 }
 
 export default function ComparisonChart({ points }: { points: ChartPoint[] }) {
   const data = points.map((p) => ({
-    label:     p.label,
-    Real:      p.realValue,
-    Synthetic: p.syntheticValue,
+    label:          p.label,
+    Real:           p.realValue,
+    Synthetic:      p.syntheticValue,
+    realCount:      p.realCount,
+    syntheticCount: p.syntheticCount,
   }));
 
   return (
