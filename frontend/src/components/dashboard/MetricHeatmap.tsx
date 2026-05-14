@@ -72,9 +72,9 @@ export default function MetricHeatmap({ matrix }: { matrix: MetricMatrix }) {
                     key={metric}
                     className="heatmap-cell"
                     style={{ background, color }}
-                    title={`${getVariableDisplayName(variable)} × ${SHORT_LABELS[metric] ?? metric}: ${score.toFixed(2)}`}
+                    title={`${getVariableDisplayName(variable)} × ${SHORT_LABELS[metric] ?? metric}: ${score.toFixed(3)}`}
                   >
-                    {score.toFixed(2)}
+                    {score.toFixed(3)}
                   </td>
                 );
               })}

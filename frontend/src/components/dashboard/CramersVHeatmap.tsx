@@ -160,7 +160,7 @@ export default function CramersVHeatmap({ variables, realMatrix, synMatrix, note
                         fontWeight: diff > 0.2 ? 600 : 400,
                       }}
                     >
-                      {diff.toFixed(2)}
+                      {diff.toFixed(3)}
                     </td>
                   );
                 })}

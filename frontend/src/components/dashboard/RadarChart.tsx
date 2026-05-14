@@ -128,7 +128,7 @@ export default function RadarChart({ axes }: { axes: RadarAxis[] }) {
         {axes.map((axis, i) => {
           const lp = labelPts[i];
           const anchor = LABEL_ANCHORS[i];
-          const displayValue = axis.value !== null ? axis.value.toFixed(2) : "N/A";
+          const displayValue = axis.value !== null ? axis.value.toFixed(3) : "N/A";
           return (
             <g key={i}>
               <text

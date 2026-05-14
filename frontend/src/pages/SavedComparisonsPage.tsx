@@ -66,7 +66,7 @@ export default function SavedComparisonsPage({
                     <td>{run.syntheticDatasetName}</td>
                     <td>
                       <StatusBadge tone={scoreTone(run.overallSimilarityScore)}>
-                        {run.overallSimilarityScore.toFixed(2)}
+                        {run.overallSimilarityScore.toFixed(3)}
                       </StatusBadge>
                     </td>
                     <td>

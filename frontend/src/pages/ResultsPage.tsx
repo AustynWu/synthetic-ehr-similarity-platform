@@ -137,26 +137,26 @@ export default function ResultsPage({
         <div className="summary-grid">
           <SummaryCard
             label="Overall similarity"
-            value={summary.overallSimilarityScore.toFixed(2)}
+            value={summary.overallSimilarityScore.toFixed(3)}
             helper="Combined score across all selected metrics and variables"
             badge={summary.overallSimilarityScore >= 0.85 ? "Good" : summary.overallSimilarityScore >= 0.70 ? "Review" : "Poor"}
             tone={scoreTone(summary.overallSimilarityScore)}
           />
           <SummaryCard
             label="Numerical similarity"
-            value={summary.numericalSimilarityScore !== null ? summary.numericalSimilarityScore.toFixed(2) : "N/A"}
+            value={summary.numericalSimilarityScore !== null ? summary.numericalSimilarityScore.toFixed(3) : "N/A"}
             helper={summary.numericalSimilarityScore !== null ? "Mean diff, KS test, Wasserstein" : "No numerical metric selected"}
             tone={scoreTone(summary.numericalSimilarityScore)}
           />
           <SummaryCard
             label="Categorical similarity"
-            value={summary.categoricalSimilarityScore !== null ? summary.categoricalSimilarityScore.toFixed(2) : "N/A"}
+            value={summary.categoricalSimilarityScore !== null ? summary.categoricalSimilarityScore.toFixed(3) : "N/A"}
             helper={summary.categoricalSimilarityScore !== null ? "Chi-square, category proportions" : "No categorical metric selected"}
             tone={scoreTone(summary.categoricalSimilarityScore)}
           />
           <SummaryCard
             label="Relationship similarity"
-            value={summary.relationshipSimilarityScore !== null ? summary.relationshipSimilarityScore.toFixed(2) : "N/A"}
+            value={summary.relationshipSimilarityScore !== null ? summary.relationshipSimilarityScore.toFixed(3) : "N/A"}
             helper={
               summary.relationshipSimilarityScore === null
                 ? "Correlation metric not selected"
@@ -306,7 +306,7 @@ export default function ResultsPage({
                       {row.type}
                     </StatusBadge>
                   </td>
-                  <td>{row.similarityScore.toFixed(2)}</td>
+                  <td>{row.similarityScore.toFixed(3)}</td>
                   <td>
                     <StatusBadge tone={statusTone(row.status)}>
                       {statusLabel(row.status)}
@@ -362,7 +362,7 @@ export default function ResultsPage({
                   <tr key={m.name}>
                     <td>{metricLabel(m.name)}</td>
                     <td>{m.value.toFixed(3)}</td>
-                    <td>{m.normalizedScore.toFixed(2)}</td>
+                    <td>{m.normalizedScore.toFixed(3)}</td>
                     <td>
                       <StatusBadge tone={scoreTone(m.normalizedScore)}>
                         {m.normalizedScore >= 0.85 ? "Good" : m.normalizedScore >= 0.70 ? "Review" : "Poor"}
@@ -423,11 +423,11 @@ export default function ResultsPage({
               {mv.topCorrelationPairs.map((p) => (
                 <tr key={`${p.variable1}-${p.variable2}`}>
                   <td>{getVariableDisplayName(p.variable1)} × {getVariableDisplayName(p.variable2)}</td>
-                  <td>{p.realCorrelation.toFixed(2)}</td>
-                  <td>{p.syntheticCorrelation.toFixed(2)}</td>
+                  <td>{p.realCorrelation.toFixed(3)}</td>
+                  <td>{p.syntheticCorrelation.toFixed(3)}</td>
                   <td>
                     <StatusBadge tone={p.difference <= 0.05 ? "success" : p.difference <= 0.10 ? "warning" : "danger"}>
-                      {p.difference.toFixed(2)}
+                      {p.difference.toFixed(3)}
                     </StatusBadge>
                   </td>
                 </tr>
@@ -477,11 +477,11 @@ export default function ResultsPage({
               {mv.topCramersVPairs.map((p) => (
                 <tr key={`${p.variable1}-${p.variable2}`}>
                   <td>{getVariableDisplayName(p.variable1)} × {getVariableDisplayName(p.variable2)}</td>
-                  <td>{p.realCramersV.toFixed(2)}</td>
-                  <td>{p.syntheticCramersV.toFixed(2)}</td>
+                  <td>{p.realCramersV.toFixed(3)}</td>
+                  <td>{p.syntheticCramersV.toFixed(3)}</td>
                   <td>
                     <StatusBadge tone={p.difference <= 0.05 ? "success" : p.difference <= 0.10 ? "warning" : "danger"}>
-                      {p.difference.toFixed(2)}
+                      {p.difference.toFixed(3)}
                     </StatusBadge>
                   </td>
                 </tr>
