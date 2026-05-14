@@ -224,6 +224,9 @@ uploads/
 /frontend/screenshots
 /testResult
 
+# Allow the bundled demo datasets that ship with the backend
+!backend/default_datasets/*.csv
+
 # Claude Code local settings (machine-specific, not for sharing)
 .claude/
 

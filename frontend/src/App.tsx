@@ -25,7 +25,7 @@ import RunDetailPage from "./pages/RunDetailPage";
 
 import { navigationItems, pageTitles } from "./utils/navigation";
 
-import { uploadDatasets, getValidationSummary } from "./services/datasetService";
+import { uploadDatasets, getValidationSummary, useDefaultDatasets } from "./services/datasetService";
 import { getDefaultEvaluationConfig, runEvaluation } from "./services/evaluationService";
 import { getSavedComparisons, saveCurrentComparison, getComparisonDetail } from "./services/comparisonService";
 
@@ -78,6 +78,9 @@ export default function App() {
 
   // True while save is in progress — disables the button to prevent double-submit
   const [isSaving, setIsSaving] = useState(false);
+
+  // True after the current evaluation result has been saved — resets when a new evaluation runs
+  const [hasSaved, setHasSaved] = useState(false);
 
   // State for View Run Details — holds the selected run's full result and metadata
   const [runDetailResult, setRunDetailResult] = useState<EvaluationResult | null>(null);
@@ -154,8 +157,48 @@ export default function App() {
     }
   };
 
+  // Called when user clicks "Use Default Dataset" on Upload page.
+  // Skips the file-selection step — the backend loads its bundled demo CSVs directly.
+  const handleUseDefaultDatasets = async () => {
+    setIsUploading(true);
+    setEvaluationResult(null);
+    try {
+      let datasets;
+      try {
+        datasets = await useDefaultDatasets();
+      } catch (err) {
+        throw new Error(
+          `Could not load default datasets: ${err instanceof Error ? err.message : "Please check the backend is running."}`
+        );
+      }
+      setUploadedDatasets(datasets);
+
+      const realId = datasets.realDataset?.id;
+      const synId  = datasets.syntheticDataset?.id;
+      if (!realId || !synId) {
+        throw new Error("Default dataset load succeeded but IDs were not returned. Please try again.");
+      }
+
+      let summary;
+      try {
+        summary = await getValidationSummary({ realDatasetId: realId, syntheticDatasetId: synId });
+      } catch (err) {
+        throw new Error(
+          `Schema validation failed: ${err instanceof Error ? err.message : "Files were loaded but could not be validated."}`
+        );
+      }
+      setValidationSummary(summary);
+      setCurrentPage("validation");
+    } catch (err) {
+      setErrorModal({ title: "Default Dataset Failed", message: err instanceof Error ? err.message : "An unexpected error occurred." });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   // Called when user clicks "Run Evaluation" on Setup page.
   const handleRunEvaluation = async (config: EvaluationConfig) => {
+    setHasSaved(false);
     setIsEvaluating(true);
     try {
       setEvaluationConfig(config);
@@ -215,6 +258,7 @@ export default function App() {
     try {
       const updated = await saveCurrentComparison({ evaluationConfig, evaluationResult, uploadedDatasets });
       setSavedComparisons(updated);
+      setHasSaved(true);
       setCurrentPage("saved");
     } catch (err) {
       setErrorModal({ title: "Save Failed", message: err instanceof Error ? err.message : "Save failed. Please check the backend is running." });
@@ -238,13 +282,13 @@ export default function App() {
   const renderPage = () => {
     switch (currentPage) {
       case "upload":
-        return <UploadPage {...sharedPageProps} onContinue={handleUploadContinue} isLoading={isUploading} />;
+        return <UploadPage {...sharedPageProps} onContinue={handleUploadContinue} onUseDefault={handleUseDefaultDatasets} isLoading={isUploading} />;
       case "validation":
         return <ValidationPage {...sharedPageProps} />;
       case "setup":
         return <SetupPage {...sharedPageProps} onRunEvaluation={handleRunEvaluation} isLoading={isEvaluating} />;
       case "results":
-        return <ResultsPage {...sharedPageProps} onSaveComparison={handleSaveComparison} isLoading={isSaving} />;
+        return <ResultsPage {...sharedPageProps} onSaveComparison={handleSaveComparison} isLoading={isSaving} hasSaved={hasSaved} />;
       case "saved":
         return <SavedComparisonsPage {...sharedPageProps} onViewRunDetail={handleViewRunDetail} isLoadingRunDetail={isLoadingRunDetail} />;
       case "runDetail":

@@ -200,6 +200,25 @@ def run_evaluation(req: RunEvaluationRequest):
         ))
     ranking.sort(key=lambda item: item.similarityScore)
 
+    # ── Metric matrix variable order ──────────────────────────────────────────
+    # Group numerical first then categorical, within each group sort by
+    # similarity score ascending (worst first) so the most divergent rows
+    # sit at the top of each type block — mirroring the column grouping
+    # (numerical metrics left, categorical metrics right).
+    # Variables with no ranking entry (no applicable metric) go at the end.
+    _ranking_lookup = {r.variable: r for r in ranking}
+    matrix_variables: list[str] = (
+        sorted(
+            [c for c in selected if c in _ranking_lookup and _ranking_lookup[c].type == "numerical"],
+            key=lambda c: _ranking_lookup[c].similarityScore,
+        )
+        + sorted(
+            [c for c in selected if c in _ranking_lookup and _ranking_lookup[c].type == "categorical"],
+            key=lambda c: _ranking_lookup[c].similarityScore,
+        )
+        + [c for c in selected if c not in _ranking_lookup]
+    )
+
     # ── Step 8c: detail views (chart data per column) ────────────────────────
     # Skip columns with no metric results — there is nothing meaningful to show.
     # build_detail_series() handles both categorical (bar chart) and numerical (histogram).
@@ -432,7 +451,7 @@ def run_evaluation(req: RunEvaluationRequest):
         reminders=reminders,
         variableRanking=ranking,
         metricMatrix=MetricMatrix(
-            variables=selected,
+            variables=matrix_variables,
             metrics=active_metrics,
             cells=cells,
         ),

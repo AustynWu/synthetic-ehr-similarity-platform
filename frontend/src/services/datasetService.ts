@@ -70,3 +70,14 @@ export async function getValidationSummary(
   // Send both IDs as a JSON body. The backend looks up the files by these IDs.
   return apiPost<ValidationSummary>("/datasets/validate", datasetIds);
 }
+
+
+// Ask the backend to load its bundled demo datasets (diabetic_data.csv + V1_syn.csv).
+// The files live in backend/default_datasets/ so they are always available on Render.
+// Returns the same UploadedDatasets shape as uploadDatasets() — the rest of the flow is identical.
+export async function useDefaultDatasets(): Promise<UploadedDatasets> {
+  if (!USE_REAL_API) {
+    throw new Error("Backend API is not configured. Please check that VITE_USE_REAL_API=true is set.");
+  }
+  return apiPost<UploadedDatasets>("/datasets/upload/default", {});
+}

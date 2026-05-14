@@ -1,12 +1,15 @@
-# routers/upload.py — POST /datasets/upload
+# routers/upload.py — POST /datasets/upload  +  POST /datasets/upload/default
 #
-# The user's first action: select two CSV files (real + synthetic).
-# This router validates the files, saves them to disk, registers them in
-# state.uploaded_files, and returns unique IDs that all later steps use
-# to reload the files without asking the user to upload again.
+# Two upload paths:
+#   /datasets/upload         — user selects two CSV files from their machine
+#   /datasets/upload/default — loads the bundled demo CSVs from default_datasets/
+#
+# Both paths validate the files and register them in state so that later
+# validation and evaluation steps can find them by ID.
 
 import uuid
 import io
+from pathlib import Path
 from datetime import datetime, timezone
 
 import pandas as pd
@@ -19,6 +22,13 @@ from constants import UPLOAD_DIR, NULL_VALUES
 import state
 
 router = APIRouter()
+
+# Bundled demo datasets — committed to the repo so they are available on Render.
+DEFAULT_DATASETS_DIR = Path(__file__).parent.parent / "default_datasets"
+DEFAULT_REAL_PATH = DEFAULT_DATASETS_DIR / "diabetic_data.csv"
+DEFAULT_SYN_PATH  = DEFAULT_DATASETS_DIR / "V1_syn.csv"
+
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
 
@@ -125,6 +135,55 @@ async def upload_datasets(
         syntheticDataset=DatasetFile(
             id=syn_id, role=DatasetRole.synthetic,
             fileName=synthetic_file.filename or "synthetic.csv",
+            fileType=DatasetFileType.csv,
+            sizeBytes=len(syn_contents),
+            uploadedAt=now, status=DatasetStatus.uploaded,
+        ),
+    )
+
+
+@router.post("/datasets/upload/default", response_model=UploadedDatasets)
+async def upload_default_datasets():
+    """Load the bundled demo CSV files from default_datasets/.
+
+    This endpoint is used by the "Use Default Dataset" button in the UI.
+    It reads the files from the repo directory so the feature works the same
+    way locally and on Render (no local path required from the browser).
+    """
+    if not DEFAULT_REAL_PATH.exists() or not DEFAULT_SYN_PATH.exists():
+        raise HTTPException(
+            status_code=503,
+            detail="Default datasets are not available on this server.",
+        )
+
+    now = datetime.now(timezone.utc).isoformat()
+    real_id = f"real-{uuid.uuid4().hex[:8]}"
+    syn_id  = f"syn-{uuid.uuid4().hex[:8]}"
+
+    real_contents = DEFAULT_REAL_PATH.read_bytes()
+    syn_contents  = DEFAULT_SYN_PATH.read_bytes()
+
+    real_path = UPLOAD_DIR / f"{real_id}.csv"
+    syn_path  = UPLOAD_DIR / f"{syn_id}.csv"
+    real_path.write_bytes(real_contents)
+    syn_path.write_bytes(syn_contents)
+
+    state.uploaded_files[real_id] = real_path
+    state.uploaded_files[syn_id]  = syn_path
+    state.uploaded_file_names[real_id] = DEFAULT_REAL_PATH.name
+    state.uploaded_file_names[syn_id]  = DEFAULT_SYN_PATH.name
+
+    return UploadedDatasets(
+        realDataset=DatasetFile(
+            id=real_id, role=DatasetRole.real,
+            fileName=DEFAULT_REAL_PATH.name,
+            fileType=DatasetFileType.csv,
+            sizeBytes=len(real_contents),
+            uploadedAt=now, status=DatasetStatus.uploaded,
+        ),
+        syntheticDataset=DatasetFile(
+            id=syn_id, role=DatasetRole.synthetic,
+            fileName=DEFAULT_SYN_PATH.name,
             fileType=DatasetFileType.csv,
             sizeBytes=len(syn_contents),
             uploadedAt=now, status=DatasetStatus.uploaded,

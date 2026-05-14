@@ -30,9 +30,11 @@ import type { SharedPageProps, UploadFilesInput } from "../types/contracts";
 export default function UploadPage({
   uploadedDatasets,
   onContinue,
+  onUseDefault,
   isLoading,
 }: SharedPageProps & {
   onContinue: (files: UploadFilesInput) => void | Promise<void>;
+  onUseDefault?: () => void | Promise<void>;
   isLoading?: boolean;
 }) {
   // Track the two selected files (null = not yet chosen)
@@ -158,6 +160,12 @@ export default function UploadPage({
         >
           Reset
         </PrimaryButton>
+        {/* Use bundled demo datasets — no file selection required */}
+        {onUseDefault && (
+          <PrimaryButton variant="secondary" onClick={onUseDefault} disabled={isLoading}>
+            {isLoading ? "Loading..." : "Use Default Dataset"}
+          </PrimaryButton>
+        )}
         {/* disabled turns the button grey and unclickable until both files are selected */}
         <PrimaryButton onClick={handleContinue} disabled={!canContinue || isLoading}>
           {isLoading ? "Uploading..." : "Validate & Continue"}

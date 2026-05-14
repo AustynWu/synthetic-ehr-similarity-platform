@@ -69,9 +69,11 @@ export default function ResultsPage({
   goToPage,
   onSaveComparison,
   isLoading,
+  hasSaved,
 }: SharedPageProps & {
   onSaveComparison: () => void;
   isLoading?: boolean;
+  hasSaved?: boolean;
 }) {
 
   // Hooks must be declared unconditionally — before any early return
@@ -278,7 +280,7 @@ export default function ResultsPage({
                 <th>Type</th>
                 <th>Similarity</th>
                 <th>Status</th>
-                <th>Top metric</th>
+                <th>Weakest metric</th>
               </tr>
             </thead>
             <tbody>
@@ -603,8 +605,8 @@ export default function ResultsPage({
           View Saved Runs
         </PrimaryButton>
         <div className="page-actions-right">
-          <PrimaryButton onClick={onSaveComparison} disabled={isLoading}>
-            {isLoading ? "Saving..." : "Save Comparison"}
+          <PrimaryButton onClick={onSaveComparison} disabled={isLoading || hasSaved}>
+            {hasSaved ? "Saved ✓" : isLoading ? "Saving..." : "Save Comparison"}
           </PrimaryButton>
         </div>
       </div>
