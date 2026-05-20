@@ -77,8 +77,8 @@ def save_comparison(
             numerical_score=result.summary.numericalSimilarityScore,
             categorical_score=result.summary.categoricalSimilarityScore,
             relationship_score=result.summary.relationshipSimilarityScore,
-            metrics_used=[str(m) for m in req.metricsUsed],
-            result_dict=result.model_dump(),
+            metrics_used=[m.value for m in req.metricsUsed],
+            result_dict=result.model_dump(mode='json'),
         )
         return _row_to_summary(row)
 
