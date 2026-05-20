@@ -192,10 +192,10 @@ export default function SetupPage({
 
   // Select only metrics that are Core priority AND already implemented in the backend
   const selectAllCoreMetrics = () => {
-    const coreKeys = availableMetrics
-      .filter((m) => m.priority === "Core" && m.implemented !== false)
+    const allKeys = availableMetrics
+      .filter((m) => m.implemented !== false)
       .map((m) => m.key);
-    setConfig((current) => ({ ...current, selectedMetrics: coreKeys }));
+    setConfig((current) => ({ ...current, selectedMetrics: allKeys }));
   };
 
   // Clear all selected metrics
@@ -241,21 +241,19 @@ export default function SetupPage({
   // Search box value for filtering column chips
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Build variable groups dynamically from the backend-supplied displayGroup field
+  // Split available columns into Numerical and Categorical groups, each sorted alphabetically.
   const variableGroups = useMemo(() => {
-    const groupMap = new Map<string, string[]>();
+    const numCols: string[] = [];
+    const catCols: string[] = [];
     for (const col of validationSummary.availableColumns) {
-      const group = col.displayGroup ?? "Other / Review";
-      if (!groupMap.has(group)) groupMap.set(group, []);
-      groupMap.get(group)!.push(col.columnName);
+      if (col.dataType === "numerical") numCols.push(col.columnName);
+      else if (col.dataType === "categorical") catCols.push(col.columnName);
     }
+    numCols.sort((a, b) => a.localeCompare(b));
+    catCols.sort((a, b) => a.localeCompare(b));
     const result: { label: string; variables: string[] }[] = [];
-    for (const label of GROUP_ORDER) {
-      if (groupMap.has(label)) result.push({ label, variables: groupMap.get(label)! });
-    }
-    for (const [label, variables] of groupMap) {
-      if (!GROUP_ORDER.includes(label)) result.push({ label, variables });
-    }
+    if (numCols.length > 0) result.push({ label: "Numerical", variables: numCols });
+    if (catCols.length > 0) result.push({ label: "Categorical", variables: catCols });
     return result;
   }, [validationSummary]);
 
@@ -415,7 +413,16 @@ export default function SetupPage({
 
             {/* Data rows — scrollable, shows 6 rows at a time */}
             <div className="type-review-rows">
-            {config.selectedColumns.map((col) => {
+            {config.selectedColumns
+              .slice()
+              .sort((a, b) => {
+                const order = (col: string) => {
+                  const t = validationSummary.availableColumns.find(c => c.columnName === col)?.dataType;
+                  return t === "numerical" ? 0 : t === "categorical" ? 1 : 2;
+                };
+                return order(a) - order(b);
+              })
+              .map((col) => {
               const inferredType =
                 validationSummary.availableColumns.find((c) => c.columnName === col)?.dataType ?? "unknown";
 
@@ -508,7 +515,7 @@ export default function SetupPage({
               className="variable-group-action"
               onClick={selectAllCoreMetrics}
             >
-              Select all core metrics
+              Select all metrics
             </button>
             <button
               type="button"

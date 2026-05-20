@@ -291,6 +291,49 @@ p {
   margin-bottom: 6px;
 }
 
+.summary-helper-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.summary-tooltip-anchor {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: default;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  user-select: none;
+}
+
+.summary-tooltip-anchor:hover .summary-tooltip-box {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.summary-tooltip-box {
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #ffffff;
+  color: #1e293b;
+  border: 1px solid #e2e8f0;
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 6px 10px;
+  border-radius: 6px;
+  white-space: normal;
+  width: 200px;
+  text-align: left;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  z-index: 100;
+  transition: opacity 0.15s;
+}
+
 .two-column-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -423,9 +466,19 @@ p {
     padding: 0 !important;
   }
 
+  /* keep individual section cards together — prevents card title ending up on one page and content on the next */
+  .section-card {
+    break-inside: avoid;
+  }
+
   /* keep chart cards together across page breaks */
   .detail-chart-card {
     break-inside: avoid;
+  }
+
+  /* keep summary grid at 2 columns in print so cards don't waste a full row each */
+  .summary-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
   }
 
   /* switch chart grid to single column so each chart gets full page width —

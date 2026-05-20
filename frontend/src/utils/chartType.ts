@@ -9,12 +9,7 @@ import type { ChartType, VariableType } from "../types/contracts";
 export function getChartType(
   _variableName: string,
   variableType: VariableType | string,
-  analysisType?: string
 ): ChartType {
-  // Multivariate analysis type takes priority
-  if (analysisType === "numerical-numerical") return "correlation_heatmap";
-  if (analysisType === "mixed")               return "grouped_boxplot";
-
   switch (variableType) {
     case "continuous_numerical":
     case "discrete_numerical":
@@ -25,6 +20,6 @@ export function getChartType(
       return "grouped_bar";
 
     default:
-      return "summary_table";
+      return "grouped_bar";
   }
 }

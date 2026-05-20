@@ -11,7 +11,6 @@
 //
 // Mock data is preserved and never deleted — it is always the fallback.
 
-// import { mockEvaluationResult } from "../mocks/results"; // mock data — disabled for production
 import type { EvaluationConfig, EvaluationResult, MetricDefinition } from "../types/contracts";
 import { USE_REAL_API, apiGet, apiPost } from "./apiClient";
 
@@ -251,10 +250,7 @@ export function getDefaultEvaluationConfig(): EvaluationConfig {
   return {
     selectedMetrics: ["mean_difference", "ks_test", "chi_square"],
     selectedColumns: [],
-    includeNumerical: true,
-    includeCategorical: true,
     missingValueHandling: "ignore",
-    significanceLevel: 0.05,
     columnTypeOverrides: {},   // empty = use backend inference for all columns
   };
 }

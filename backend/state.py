@@ -9,13 +9,11 @@
 # be separate objects — data stored by upload.py would be invisible to
 # evaluation.py.  Sharing via state.py guarantees one source of truth.
 #
-# Why in-memory instead of a database?
-# This is a prototype.  A real production system would use a database or
-# object store so data survives server restarts and works across multiple
-# workers.  For now, losing uploads on restart is acceptable.
+# Upload state stays in-memory because uploaded CSVs are temporary — they are
+# re-uploaded every session.  Saved comparison results are now stored in the
+# database (see db/repository.py) so they survive server restarts.
 
 from pathlib import Path
-from schemas import SavedComparison, EvaluationResult
 
 # Maps dataset ID (e.g. "real-a1b2c3d4") → absolute file path on disk.
 # Written by upload.py; read by validation.py and evaluation.py.
@@ -25,15 +23,3 @@ uploaded_files: dict[str, Path] = {}
 # Stored separately because uploaded_files holds the storage path (real-a1b2c3d4.csv),
 # which is not human-readable.  Used in analysis_context and saved comparison names.
 uploaded_file_names: dict[str, str] = {}
-
-# List of lightweight run summaries shown on the Saved Comparisons page.
-# Stored newest-first: save_comparison() uses insert(0, ...) so the list
-# is always sorted without an extra sort call on every GET /comparisons.
-saved_comparisons: list[SavedComparison] = []
-
-# Full EvaluationResult objects keyed by run ID.
-# Stored separately from saved_comparisons because the list view only needs
-# a small summary (score, dataset names, date), while View Run Details needs
-# the complete result including detail_views and metric_matrix.
-# Keeping them split avoids serialising large objects on every list request.
-saved_evaluation_results: dict[str, EvaluationResult] = {}

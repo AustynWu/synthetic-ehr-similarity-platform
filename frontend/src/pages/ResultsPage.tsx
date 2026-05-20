@@ -36,6 +36,21 @@ function metricLabel(key: string): string {
   return availableMetrics.find((m) => m.key === key)?.label ?? key;
 }
 
+// Plain-English explanation for each metric — shown as ⓘ hover tooltip on summary cards
+function metricExplanation(key: string): string {
+  const map: Record<string, string> = {
+    mean_difference:                  "Compares the average value of each variable. Score closer to 1 means synthetic and real means are similar.",
+    ks_test:                          "Compares the full distribution shape, not just the average. Score closer to 1 means the distributions are more similar.",
+    wasserstein_distance:             "Measures how much the synthetic distribution needs to shift to match the real one. Score closer to 1 means less shifting needed.",
+    chi_square:                       "Checks if category frequencies match between real and synthetic data. Score closer to 1 means more similar.",
+    category_proportion_difference:   "Compares how common each category is. Score closer to 1 means proportions are more similar.",
+    correlation_difference:           "Checks if pairs of numerical variables have similar correlations in both datasets. Score closer to 1 means relationships are better preserved.",
+    cramers_v_comparison:             "Checks if pairs of categorical variables have similar associations in both datasets. Score closer to 1 means associations are better preserved.",
+    numerical_categorical_association:"Checks if numerical variables behave the same across category groups. Score closer to 1 means group patterns are better preserved.",
+  };
+  return map[key] ?? "";
+}
+
 // Map status → badge tone colour
 function statusTone(status: "good" | "moderate" | "poor"): StatusTone {
   if (status === "good")     return "success";
@@ -93,7 +108,7 @@ export default function ResultsPage({
     );
   }
 
-  const { summary, analysisContext, reminders, variableRanking, metricMatrix, detailViews, insights, multivariateResults: mv } = evaluationResult;
+  const { summary, analysisContext, variableRanking, metricMatrix, detailViews, insights, multivariateResults: mv } = evaluationResult;
 
   // Resolve which variable is currently shown in section 5.
   // Falls back to the first variable that has a detail view when nothing is selected yet.
@@ -136,55 +151,38 @@ export default function ResultsPage({
         title="Indicative Similarity Summary"
         description="These scores are statistical estimates only. They do not guarantee clinical equivalence or suitability for any specific use case."
       >
-        <div className="summary-grid">
-          <SummaryCard
-            label="Overall similarity"
-            value={summary.overallSimilarityScore.toFixed(3)}
-            helper="Combined score across all selected metrics and variables"
-            badge={summary.overallSimilarityScore >= 0.85 ? "Good" : summary.overallSimilarityScore >= 0.70 ? "Review" : "Poor"}
-            tone={scoreTone(summary.overallSimilarityScore)}
-          />
-          <SummaryCard
-            label="Numerical similarity"
-            value={summary.numericalSimilarityScore !== null ? summary.numericalSimilarityScore.toFixed(3) : "N/A"}
-            helper={summary.numericalSimilarityScore !== null ? "Mean diff, KS test, Wasserstein" : "No numerical metric selected"}
-            tone={scoreTone(summary.numericalSimilarityScore)}
-          />
-          <SummaryCard
-            label="Categorical similarity"
-            value={summary.categoricalSimilarityScore !== null ? summary.categoricalSimilarityScore.toFixed(3) : "N/A"}
-            helper={summary.categoricalSimilarityScore !== null ? "Chi-square, category proportions" : "No categorical metric selected"}
-            tone={scoreTone(summary.categoricalSimilarityScore)}
-          />
-          <SummaryCard
-            label="Relationship similarity"
-            value={summary.relationshipSimilarityScore !== null ? summary.relationshipSimilarityScore.toFixed(3) : "N/A"}
-            helper={
-              summary.relationshipSimilarityScore === null
-                ? "Correlation metric not selected"
-                : summary.relationshipSimilarityScore >= 0.85
-                ? "Correlation structure is well preserved across numerical variables"
-                : summary.relationshipSimilarityScore >= 0.70
-                ? "Some correlation patterns have shifted in the synthetic data"
-                : "Significant correlation degradation — variable relationships differ from real"
-            }
-            tone={scoreTone(summary.relationshipSimilarityScore)}
-          />
-          <SummaryCard
-            label="Variables analysed"
-            value={`${summary.variablesAnalyzed} / ${summary.variablesSelected ?? summary.variablesAnalyzed}`}
-            helper={
-              summary.variablesAnalyzed < (summary.variablesSelected ?? summary.variablesAnalyzed)
-                ? `${(summary.variablesSelected ?? summary.variablesAnalyzed) - summary.variablesAnalyzed} variable(s) had no applicable metric — check metric selection`
-                : "All selected variables were scored"
-            }
-          />
-          <SummaryCard
-            label="Metrics used"
-            value={summary.metricsUsed}
-            helper={`Run ID: ${evaluationResult.runId}`}
-          />
-        </div>
+        {/* Per-metric similarity — one SummaryCard per metric, grouped by category */}
+        {(["numerical", "categorical", "relationship"] as const).map((cat) => {
+          const rows = summary.metricSummaries.filter((m) => m.category === cat);
+          if (rows.length === 0) return null;
+          const catLabel = cat === "numerical" ? "Numerical Similarity" : cat === "categorical" ? "Categorical Similarity" : "Relationship Similarity";
+          const catNote = "Average score per metric across applicable variables";
+          return (
+            <div key={cat} style={{ marginTop: 20 }}>
+              <div style={{ marginBottom: 8 }}>
+                <span style={{ fontWeight: 600, fontSize: 13, color: "#1e293b" }}>{catLabel}</span>
+                <span style={{ fontSize: 12, color: "#94a3b8", marginLeft: 8 }}>{catNote}</span>
+              </div>
+              <div className="summary-grid">
+                {rows.map((row) => {
+                  const tone = scoreTone(row.averageScore);
+                  const badgeLabel = row.averageScore >= 0.85 ? "Good" : row.averageScore >= 0.70 ? "Review" : "Poor";
+                  return (
+                    <SummaryCard
+                      key={row.metric}
+                      label={metricLabel(row.metric)}
+                      value={row.averageScore.toFixed(3)}
+                      badge={badgeLabel}
+                      tone={tone}
+                      helper={`${row.variableCount} variable${row.variableCount !== 1 ? "s" : ""}`}
+                      tooltip={metricExplanation(row.metric)}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
       </PageSection>
 
       {/* ── Section 2: Analysis context ────────────────────────────────────── */}
@@ -223,15 +221,6 @@ export default function ResultsPage({
           </div>
         </div>
 
-        {/* Auto-generated reminders */}
-        <div className="context-section">
-          <p className="context-section-label">Evaluation notes</p>
-          <ul className="reminder-list">
-            {reminders.map((r) => (
-              <li key={r}>{r}</li>
-            ))}
-          </ul>
-        </div>
       </SectionCard>
 
       {/* ── Univariate Results ─────────────────────────────────────────────── */}
@@ -442,8 +431,8 @@ export default function ResultsPage({
       {/* Correlation difference heatmap — shown when full matrices are available */}
       {mv?.realCorrelationMatrix && mv?.synCorrelationMatrix && (
         <SectionCard
-          title="Numerical–Numerical: Correlation Difference Heatmap"
-          subtitle="Each cell shows |real Pearson r − synthetic Pearson r|. Darker red = larger difference. Hover for exact values."
+          title="Numerical–Numerical: Correlation Similarity Heatmap"
+          subtitle="Each cell = 1 − |real Pearson r − synthetic Pearson r|. 1 = identical, 0 = completely different. Hover for exact values."
         >
           <CorrelationHeatmap
             variables={Object.keys(mv.realCorrelationMatrix)}
@@ -496,8 +485,8 @@ export default function ResultsPage({
       {/* Cramér's V difference heatmap — shown when matrices are available */}
       {mv?.realCramersVMatrix && mv?.synCramersVMatrix && (
         <SectionCard
-          title="Categorical–Categorical: Cramér's V Difference Heatmap"
-          subtitle="Each cell shows |real Cramér's V − synthetic Cramér's V|. Darker red = larger difference. Hover for exact values."
+          title="Categorical–Categorical: Cramér's V Similarity Heatmap"
+          subtitle="Each cell = 1 − |real Cramér's V − synthetic Cramér's V|. 1 = identical, 0 = completely different. Hover for exact values."
         >
           <CramersVHeatmap
             variables={Object.keys(mv.realCramersVMatrix)}

@@ -135,10 +135,7 @@ class ValidationSummary(BaseModel):
 class EvaluationConfig(BaseModel):
     selectedMetrics: list[EvaluationMetric]
     selectedColumns: list[str]
-    includeNumerical: bool = True
-    includeCategorical: bool = True
     missingValueHandling: MissingValueHandling = MissingValueHandling.ignore
-    significanceLevel: float = 0.05
     # User-corrected variable types from the frontend type review step.
     # Key = raw column name, value = "numerical" | "categorical"
     # None or empty dict means use backend infer_type() for all columns.
@@ -147,14 +144,21 @@ class EvaluationConfig(BaseModel):
 
 # ── Evaluation result (backend → frontend) ────────────────────
 
+class MetricSummaryItem(BaseModel):
+    metric: "EvaluationMetric"
+    averageScore: float   # average normalized score across all variables where this metric was computed
+    variableCount: int    # number of variables this metric was applied to
+    category: str         # "numerical" | "categorical" | "relationship"
+
 class EvaluationSummary(BaseModel):
-    overallSimilarityScore: float
-    numericalSimilarityScore: Optional[float] = None    # null if no numerical metric selected
-    categoricalSimilarityScore: Optional[float] = None  # null if no categorical metric selected
-    relationshipSimilarityScore: Optional[float] = None # null if correlation_difference not selected
+    overallSimilarityScore: float                         # kept for saved-comparisons history
+    numericalSimilarityScore: Optional[float] = None
+    categoricalSimilarityScore: Optional[float] = None
+    relationshipSimilarityScore: Optional[float] = None
     variablesAnalyzed: int   # variables that produced at least one score
     variablesSelected: int   # variables the user selected on Setup
     metricsUsed: int
+    metricSummaries: list[MetricSummaryItem] = []        # per-metric averages — use these instead of the combined scores above
 
 class AnalysisContext(BaseModel):
     realDatasetName: str

@@ -37,6 +37,20 @@ function metricLabel(key: string): string {
   return availableMetrics.find((m) => m.key === key)?.label ?? key;
 }
 
+function metricExplanation(key: string): string {
+  const map: Record<string, string> = {
+    mean_difference:                  "Compares the average value of each variable. Score closer to 1 means synthetic and real means are similar.",
+    ks_test:                          "Compares the full distribution shape, not just the average. Score closer to 1 means the distributions are more similar.",
+    wasserstein_distance:             "Measures how much the synthetic distribution needs to shift to match the real one. Score closer to 1 means less shifting needed.",
+    chi_square:                       "Checks if category frequencies match between real and synthetic data. Score closer to 1 means more similar.",
+    category_proportion_difference:   "Compares how common each category is. Score closer to 1 means proportions are more similar.",
+    correlation_difference:           "Checks if pairs of numerical variables have similar correlations in both datasets. Score closer to 1 means relationships are better preserved.",
+    cramers_v_comparison:             "Checks if pairs of categorical variables have similar associations in both datasets. Score closer to 1 means associations are better preserved.",
+    numerical_categorical_association:"Checks if numerical variables behave the same across category groups. Score closer to 1 means group patterns are better preserved.",
+  };
+  return map[key] ?? "";
+}
+
 function scoreTone(score: number | null): StatusTone {
   if (score === null) return "info";
   if (score >= 0.85)  return "success";
@@ -122,6 +136,16 @@ function VariableCard({ v, detailViews }: {
   );
 }
 
+function exportPDF(runName: string, dateLabel: string) {
+  const safe = (s: string) => s.replace(/[^a-zA-Z0-9_\-]/g, "_").replace(/_+/g, "_");
+  const date = new Date().toISOString().slice(0, 10);
+  const filename = `EHR-Similarity_${safe(runName)}_${date}`;
+  const original = document.title;
+  document.title = filename;
+  window.addEventListener("afterprint", () => { document.title = original; }, { once: true });
+  window.print();
+}
+
 export default function RunDetailPage({
   evaluationResult,
   savedComparison,
@@ -152,7 +176,7 @@ export default function RunDetailPage({
         <PrimaryButton variant="ghost" onClick={() => goToPage("saved")}>
           Back to Saved Runs
         </PrimaryButton>
-        <PrimaryButton onClick={() => window.print()}>
+        <PrimaryButton onClick={() => exportPDF(savedComparison.runName, savedComparison.createdAtLabel)}>
           Export PDF
         </PrimaryButton>
       </div>
@@ -169,80 +193,79 @@ export default function RunDetailPage({
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* SECTION 1 — SUMMARY                                                   */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      <PageSection title="Summary">
+      <PageSection
+        title="Indicative Similarity Summary"
+        description="These scores are statistical estimates only. They do not guarantee clinical equivalence or suitability for any specific use case."
+      >
 
-        {/* Similarity score cards */}
-        <div className="summary-grid">
-          <SummaryCard
-            label="Overall similarity"
-            value={summary.overallSimilarityScore.toFixed(3)}
-            tone={scoreTone(summary.overallSimilarityScore)}
-            badge={summary.overallSimilarityScore >= 0.85 ? "Good" : summary.overallSimilarityScore >= 0.70 ? "Review" : "Poor"}
-          />
-          <SummaryCard
-            label="Numerical similarity"
-            value={summary.numericalSimilarityScore !== null ? summary.numericalSimilarityScore.toFixed(3) : "N/A"}
-            helper={summary.numericalSimilarityScore === null ? "No numerical metric selected" : undefined}
-            tone={scoreTone(summary.numericalSimilarityScore)}
-          />
-          <SummaryCard
-            label="Categorical similarity"
-            value={summary.categoricalSimilarityScore !== null ? summary.categoricalSimilarityScore.toFixed(3) : "N/A"}
-            helper={summary.categoricalSimilarityScore === null ? "No categorical metric selected" : undefined}
-            tone={scoreTone(summary.categoricalSimilarityScore)}
-          />
-          <SummaryCard
-            label="Relationship similarity"
-            value={summary.relationshipSimilarityScore !== null ? summary.relationshipSimilarityScore.toFixed(3) : "N/A"}
-            helper={summary.relationshipSimilarityScore === null ? "Correlation metric not selected" : undefined}
-            tone={scoreTone(summary.relationshipSimilarityScore)}
-          />
-          <SummaryCard
-            label="Variables analysed"
-            value={`${summary.variablesAnalyzed} / ${summary.variablesSelected ?? summary.variablesAnalyzed}`}
-            helper={
-              summary.variablesAnalyzed < (summary.variablesSelected ?? summary.variablesAnalyzed)
-                ? `${(summary.variablesSelected ?? summary.variablesAnalyzed) - summary.variablesAnalyzed} variable(s) had no applicable metric`
-                : "All selected variables were scored"
-            }
-          />
-          <SummaryCard label="Metrics used" value={summary.metricsUsed} />
+        {/* Per-metric similarity — one SummaryCard per metric, grouped by category */}
+        {(["numerical", "categorical", "relationship"] as const).map((cat) => {
+          const rows = summary.metricSummaries.filter((m) => m.category === cat);
+          if (rows.length === 0) return null;
+          const catLabel = cat === "numerical" ? "Numerical Similarity" : cat === "categorical" ? "Categorical Similarity" : "Relationship Similarity";
+          const catNote = "Average score per metric across applicable variables";
+          return (
+            <div key={cat} style={{ marginTop: 20 }}>
+              <div style={{ marginBottom: 8 }}>
+                <span style={{ fontWeight: 600, fontSize: 13, color: "#1e293b" }}>{catLabel}</span>
+                <span style={{ fontSize: 12, color: "#94a3b8", marginLeft: 8 }}>{catNote}</span>
+              </div>
+              <div className="summary-grid">
+                {rows.map((row) => {
+                  const tone = scoreTone(row.averageScore);
+                  const badgeLabel = row.averageScore >= 0.85 ? "Good" : row.averageScore >= 0.70 ? "Review" : "Poor";
+                  return (
+                    <SummaryCard
+                      key={row.metric}
+                      label={metricLabel(row.metric)}
+                      value={row.averageScore.toFixed(3)}
+                      badge={badgeLabel}
+                      tone={tone}
+                      helper={`${row.variableCount} variable${row.variableCount !== 1 ? "s" : ""}`}
+                      tooltip={metricExplanation(row.metric)}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+
+      </PageSection>
+
+      {/* Dataset and config context */}
+      <SectionCard title="Analysis context" subtitle="Dataset pair and evaluation configuration for this run.">
+        <div className="context-dataset-row">
+          <span className="context-dataset-label">Real dataset</span>
+          <strong>{analysisContext.realDatasetName}</strong>
+          <span className="context-dataset-sep">vs</span>
+          <span className="context-dataset-label">Synthetic dataset</span>
+          <strong>{analysisContext.syntheticDatasetName}</strong>
         </div>
 
-        {/* Dataset and config context */}
-        <SectionCard title="Analysis context" subtitle="Dataset pair and evaluation configuration.">
-          <div className="context-dataset-row">
-            <span className="context-dataset-label">Real dataset</span>
-            <strong>{analysisContext.realDatasetName}</strong>
-            <span className="context-dataset-sep">vs</span>
-            <span className="context-dataset-label">Synthetic dataset</span>
-            <strong>{analysisContext.syntheticDatasetName}</strong>
+        <div className="context-section">
+          <p className="context-section-label">Selected variables</p>
+          <div className="context-chip-list">
+            {analysisContext.selectedVariables.map((v) => (
+              <span key={v} className="context-chip" title={v}>{getVariableDisplayName(v)}</span>
+            ))}
           </div>
+        </div>
 
-          <div className="context-section">
-            <p className="context-section-label">Selected variables</p>
-            <div className="context-chip-list">
-              {analysisContext.selectedVariables.map((v) => (
-                <span key={v} className="context-chip" title={v}>{getVariableDisplayName(v)}</span>
-              ))}
-            </div>
+        <div className="context-section">
+          <p className="context-section-label">Selected metrics</p>
+          <div className="context-chip-list">
+            {analysisContext.selectedMetrics.map((m) => (
+              <span key={m} className="context-chip metric">{metricLabel(m)}</span>
+            ))}
           </div>
-
-          <div className="context-section">
-            <p className="context-section-label">Selected metrics</p>
-            <div className="context-chip-list">
-              {analysisContext.selectedMetrics.map((m) => (
-                <span key={m} className="context-chip metric">{metricLabel(m)}</span>
-              ))}
-            </div>
-          </div>
-        </SectionCard>
-      </PageSection>
+        </div>
+      </SectionCard>
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* SECTION 2 — UNIVARIATE RESULTS                                        */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      <div className="results-section-divider" style={{ pageBreakBefore: "always", breakBefore: "page" }}>
+      <div className="results-section-divider">
         <span className="results-section-label">Univariate Results</span>
         <span className="results-section-hint">Per-variable distribution comparison — chart and metric scores for each variable</span>
       </div>
@@ -286,7 +309,7 @@ export default function RunDetailPage({
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* SECTION 3 — MULTIVARIATE RESULTS                                      */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      <div className="results-section-divider" style={{ pageBreakBefore: "always", breakBefore: "page" }}>
+      <div className="results-section-divider">
         <span className="results-section-label">Multivariate Results</span>
         <span className="results-section-hint">Cross-variable analysis — how well relationships between variables are preserved</span>
       </div>
@@ -333,8 +356,8 @@ export default function RunDetailPage({
 
           {mv.realCorrelationMatrix && mv.synCorrelationMatrix && (
             <SectionCard
-              title="Correlation Difference Heatmap"
-              subtitle="Each cell = |real Pearson r − synthetic Pearson r|. Darker red = larger difference."
+              title="Correlation Similarity Heatmap"
+              subtitle="Each cell = 1 − |real Pearson r − synthetic Pearson r|. 1 = identical, 0 = completely different. Hover for exact values."
             >
               <CorrelationHeatmap
                 variables={Object.keys(mv.realCorrelationMatrix)}
@@ -389,8 +412,8 @@ export default function RunDetailPage({
 
           {mv.realCramersVMatrix && mv.synCramersVMatrix && (
             <SectionCard
-              title="Cramér's V Difference Heatmap"
-              subtitle="Each cell = |real Cramér's V − synthetic Cramér's V|. Darker red = larger difference."
+              title="Cramér's V Similarity Heatmap"
+              subtitle="Each cell = 1 − |real Cramér's V − synthetic Cramér's V|. 1 = identical, 0 = completely different. Hover for exact values."
             >
               <CramersVHeatmap
                 variables={Object.keys(mv.realCramersVMatrix)}
@@ -462,7 +485,7 @@ export default function RunDetailPage({
         <PrimaryButton variant="ghost" onClick={() => goToPage("saved")}>
           Back to Saved Runs
         </PrimaryButton>
-        <PrimaryButton onClick={() => window.print()}>
+        <PrimaryButton onClick={() => exportPDF(savedComparison.runName, savedComparison.createdAtLabel)}>
           Export PDF
         </PrimaryButton>
       </div>

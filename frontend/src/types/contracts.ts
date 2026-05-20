@@ -143,11 +143,8 @@ export type VariableType =
 
 // Chart rendering style chosen based on variable type
 export type ChartType =
-  | "histogram_kde"       // distribution curve — for continuous numerical
-  | "grouped_bar"         // side-by-side bars  — for discrete numerical and categorical
-  | "correlation_heatmap" // matrix heat colours — for numerical-numerical multivariate
-  | "grouped_boxplot"     // box per group       — for mixed analysis
-  | "summary_table";      // plain table         — fallback
+  | "histogram_kde"  // distribution curve — for continuous numerical
+  | "grouped_bar";   // side-by-side bars  — for discrete numerical and categorical
 
 // Supported statistical metrics
 // ── Implemented (backend ready) ──────────────────────────────────
@@ -214,10 +211,7 @@ export interface MetricDefinition {
 export interface EvaluationConfig {
   selectedMetrics: EvaluationMetric[];
   selectedColumns: string[];
-  includeNumerical: boolean;
-  includeCategorical: boolean;
   missingValueHandling: "ignore" | "drop" | "simple_impute";
-  significanceLevel: number;
   // User-corrected variable types — overrides backend infer_type() result.
   // Key = raw column name, value = "numerical" | "categorical"
   // Empty object means no overrides — use backend inference for everything.
@@ -238,15 +232,23 @@ export interface ChartPoint {
   syntheticCount?: number;
 }
 
-// Top-level summary scores shown in the 6 summary cards
+export interface MetricSummaryItem {
+  metric: string;
+  averageScore: number;
+  variableCount: number;
+  category: "numerical" | "categorical" | "relationship";
+}
+
+// Top-level summary scores
 export interface EvaluationSummary {
-  overallSimilarityScore: number;
-  numericalSimilarityScore: number | null;    // null if no numerical metric was selected
-  categoricalSimilarityScore: number | null;  // null if no categorical metric was selected
-  relationshipSimilarityScore: number | null; // null if correlation_difference was not selected
-  variablesAnalyzed: number;   // variables that produced at least one score
-  variablesSelected: number;   // variables the user selected on Setup
+  overallSimilarityScore: number;             // kept for saved-comparisons history
+  numericalSimilarityScore: number | null;
+  categoricalSimilarityScore: number | null;
+  relationshipSimilarityScore: number | null;
+  variablesAnalyzed: number;
+  variablesSelected: number;
   metricsUsed: number;
+  metricSummaries: MetricSummaryItem[];       // per-metric averages — shown instead of combined scores
 }
 
 // Records what the user selected on the Setup page
@@ -419,6 +421,7 @@ export interface SummaryCardProps {
   helper?: ReactNode;  // optional supplementary note
   tone?: StatusTone;
   badge?: ReactNode;   // optional top-right label
+  tooltip?: string;    // plain-English explanation shown on ⓘ hover
 }
 
 // SectionCard props
@@ -480,20 +483,6 @@ export interface InfoAlertProps {
 // MetricBadgeList props
 export interface MetricBadgeListProps {
   items: string[]; // each string becomes one badge
-}
-
-// One bar inside FakeChart
-export interface FakeChartBar {
-  label: string;
-  value: ReactNode;
-  percent: number; // bar width 0–100
-}
-
-// FakeChart props
-export interface FakeChartProps {
-  title: string;
-  bars?: FakeChartBar[];
-  height?: number; // min-height in px
 }
 
 // Column definition for DataTable

@@ -1,29 +1,97 @@
-services:
-  db:
-    image: postgres:16
-    environment:
-      POSTGRES_USER: capstone
-      POSTGRES_PASSWORD: capstone
-      POSTGRES_DB: ehr_similarity
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
+# docker-compose.yml — runs the full stack (database + backend + frontend)
+#
+# Credentials are read from the root .env file (next to this file).
+# Copy .env.example to .env and fill in your values before running.
+#
+# Start everything:  docker compose up --build
+# Backend only:      docker compose up db_mysql backend
+#
+# CURRENT MODE: MySQL (default)
+# To switch to PostgreSQL (supervisor requirement):
+#   1. Comment out the db_mysql service, uncomment db_postgres
+#   2. In the backend service, change depends_on to db_postgres
+#   3. Change DB_TYPE to postgres and DB_PORT to 5432
 
-  backend:
-    image: python:3.12-slim
-    working_dir: /app
-    volumes:
-      - ./backend:/app
-    command: >
-      bash -lc "pip install -r requirements.txt
-      && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+version: "3.9"
+
+services:
+
+  # ── MySQL (default) ────────────────────────────────────────────────────────
+  db_mysql:
+    image: mysql:8.0
+    container_name: capstone_db_mysql
+    restart: always
     environment:
-      DATABASE_URL: postgresql://capstone:capstone@db:5432/ehr_similarity
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── PostgreSQL (supervisor backup — uncomment to switch) ───────────────────
+  # db_postgres:
+  #   image: postgres:16
+  #   container_name: capstone_db_postgres
+  #   restart: always
+  #   environment:
+  #     POSTGRES_USER: ${DB_USER}
+  #     POSTGRES_PASSWORD: ${DB_PASSWORD}
+  #     POSTGRES_DB: ${DB_NAME}
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+  # ── FastAPI backend ─────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+    container_name: capstone_backend
+    depends_on:
+      db_mysql:
+        condition: service_healthy
+    # To use PostgreSQL: change depends_on to db_postgres, DB_TYPE to postgres, DB_PORT to 5432
     ports:
       - "8000:8000"
+    environment:
+      DB_TYPE: mysql
+      DB_HOST: db_mysql
+      DB_PORT: "3306"
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+    volumes:
+      - ./backend:/app   # live reload during development
+
+  # ── React / Vite frontend ───────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # VITE_* vars are baked into the JS bundle at build time by Vite.
+        # VITE_API_BASE_URL must be the URL the *browser* uses to reach the backend
+        # (localhost:8000), not the Docker-internal service name (backend:8000).
+        VITE_USE_REAL_API: "true"
+        VITE_API_BASE_URL: "http://localhost:8000"
+    container_name: capstone_frontend
     depends_on:
-      - db
+      - backend
+    ports:
+      - "5173:80"
 
 volumes:
-  pgdata:
+  mysql_data:
+  # postgres_data:   # uncomment if switching to PostgreSQL

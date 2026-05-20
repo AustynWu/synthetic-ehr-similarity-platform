@@ -167,7 +167,7 @@ export default function ValidationPage({ validationSummary, goToPage }: SharedPa
 
               {/* Number of columns that contain at least one empty cell */}
               <div className="dataset-stat-row">
-                <span>Columns with missing <span className="stat-label-note">(≥ 1 empty cell)</span></span>
+                <span>Columns with missing values <span className="stat-label-note">(≥ 1 empty cell)</span></span>
                 <strong>
                   {validationSummary.realDataset.missingColumnCount}
                   <span className="stat-sub">
@@ -223,7 +223,7 @@ export default function ValidationPage({ validationSummary, goToPage }: SharedPa
               </div>
 
               <div className="dataset-stat-row">
-                <span>Columns with missing <span className="stat-label-note">(≥ 1 empty cell)</span></span>
+                <span>Columns with missing values <span className="stat-label-note">(≥ 1 empty cell)</span></span>
                 <strong>
                   {validationSummary.syntheticDataset.missingColumnCount}
                   <span className="stat-sub">

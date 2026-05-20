@@ -11,7 +11,7 @@ from schemas import (
     DatasetBasicSummary, SchemaComparisonRow, SchemaStatus,
     ValidationIssue, AvailableColumn, ExcludedColumn, ValidationSummary, ValidateRequest, DataTypeLabel,
 )
-from constants import NULL_VALUES, KNOWN_ID_COLS, GROUP_KEYWORDS, GROUP_EXACT_COLS
+from constants import NULL_VALUES, KNOWN_ID_COLS
 from services.type_inference import infer_type
 import state
 
@@ -29,16 +29,10 @@ def _exclusion_reason(data_type: DataTypeLabel, col_name: str) -> str:
     return "Column type is not supported for metric calculation."
 
 
-def _infer_display_group(col_name: str) -> str:
-    name = col_name.lower()
-    # Exact match first — prevents short keywords from matching unrelated column names.
-    if name in GROUP_EXACT_COLS:
-        return GROUP_EXACT_COLS[name]
-    # Substring match in priority order (Patient → Lab/Test → Medication → Outcome → Clinical).
-    for group, keywords in GROUP_KEYWORDS.items():
-        if any(k in name for k in keywords):
-            return group
-    return "Other / Review"
+def _infer_display_group(_col_name: str) -> str:
+    # All columns go into one flat group so the variable list works with any dataset,
+    # not just datasets whose column names match clinical keywords.
+    return "All Variables"
 
 
 @router.post("/datasets/validate", response_model=ValidationSummary)
@@ -136,12 +130,23 @@ def validate_datasets(req: ValidateRequest):
     # availableColumns: only shared columns whose type is numerical or categorical.
     # ID columns are excluded because they have no analytical value.
     # text/datetime/unknown columns are excluded because no current metric handles them.
+    # Sort: numerical columns first, then categorical, alphabetically within each type.
+    # This mirrors the metric grouping on the Setup page so users can easily match
+    # columns to the correct metric type without hunting through a mixed list.
+    def _col_sort_key(col: str) -> tuple:
+        t = real_type_cache[col]
+        type_order = 0 if t == DataTypeLabel.numerical else 1
+        return (type_order, col.lower())
+
     available = [
         AvailableColumn(columnName=col, dataType=real_type_cache[col],
                         displayGroup=_infer_display_group(col))
-        for col in sorted(matched_cols)
-        if col not in KNOWN_ID_COLS
-        and real_type_cache[col] in (DataTypeLabel.numerical, DataTypeLabel.categorical)
+        for col in sorted(
+            (c for c in matched_cols
+             if c not in KNOWN_ID_COLS
+             and real_type_cache[c] in (DataTypeLabel.numerical, DataTypeLabel.categorical)),
+            key=_col_sort_key,
+        )
     ]
 
     # excludedColumns: shared columns that were filtered out of availableColumns.

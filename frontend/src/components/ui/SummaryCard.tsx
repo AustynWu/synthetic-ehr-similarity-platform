@@ -19,23 +19,33 @@ export default function SummaryCard({
   label,
   value,
   helper,
-  tone = "info",  // default badge colour: blue
-  badge,          // optional top-right label
+  tone = "info",
+  badge,
+  tooltip,
 }: SummaryCardProps) {
   return (
     <div className="summary-card">
       {/* Top row: label on the left, badge on the right */}
       <div className="summary-top-row">
         <p>{label}</p>
-        {/* null/undefined is not rendered by React — safe to use as a conditional */}
         {badge ? <StatusBadge tone={tone}>{badge}</StatusBadge> : null}
       </div>
 
       {/* Main value */}
       <h3>{value}</h3>
 
-      {/* Optional supplementary note */}
-      {helper ? <span>{helper}</span> : null}
+      {/* Helper text with optional ⓘ tooltip */}
+      {(helper || tooltip) ? (
+        <div className="summary-helper-row">
+          {helper ? <span>{helper}</span> : null}
+          {tooltip ? (
+            <span className="summary-tooltip-anchor">
+              ⓘ
+              <span className="summary-tooltip-box">{tooltip}</span>
+            </span>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

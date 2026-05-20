@@ -12,8 +12,6 @@
 //
 // Mock data is preserved and never deleted — it is always the fallback when the backend is unavailable.
 
-// import { mockDatasets } from "../mocks/datasets";           // mock data — disabled for production
-// import { mockValidationSummary } from "../mocks/validation"; // mock data — disabled for production
 import type { UploadFilesInput, UploadedDatasets, ValidationSummary } from "../types/contracts";
 import { USE_REAL_API, apiUpload, apiPost } from "./apiClient";
 

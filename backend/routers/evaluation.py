@@ -29,7 +29,7 @@ from schemas import (
     DataTypeLabel, EvaluationMetric,
     RunEvaluationRequest, EvaluationResult, EvaluationSummary, AnalysisContext,
     VariableRankingItem, MetricMatrix, MetricMatrixCell,
-    VariableDetailView, DetailViewMetric,
+    VariableDetailView, DetailViewMetric, MetricSummaryItem,
 )
 from constants import NULL_VALUES
 import state
@@ -290,14 +290,39 @@ def run_evaluation(req: RunEvaluationRequest):
     }
     active_metrics = [m for m in _METRIC_ORDER if m in _used]
 
+    # Per-metric summary: for each metric, average its normalized score across all variables
+    # where that metric was computed.  Kept separate so the UI can show each metric independently
+    # without mixing different statistical tests into one unclear combined score.
+    metric_summaries: list[MetricSummaryItem] = []
+    for metric in active_metrics:
+        scores = [
+            score
+            for col in selected
+            for m, (_, score) in raw_results[col].items()
+            if m == metric and not math.isnan(score)
+        ]
+        if scores:
+            cat = (
+                "numerical"   if metric in _NUM_METRICS  else
+                "categorical" if metric in _CAT_METRICS  else
+                "relationship"
+            )
+            metric_summaries.append(MetricSummaryItem(
+                metric=metric,
+                averageScore=round(statistics.mean(scores), 4),
+                variableCount=len(scores),
+                category=cat,
+            ))
+
     summary = EvaluationSummary(
         overallSimilarityScore=overall,
         numericalSimilarityScore=avg_scores_for(_NUM_METRICS),
         categoricalSimilarityScore=avg_scores_for(_CAT_METRICS),
         relationshipSimilarityScore=avg_scores_for(_CORR_METRICS),
-        variablesAnalyzed=len(ranking),    # columns that produced at least one score
-        variablesSelected=len(selected),   # all columns the user chose on Setup
+        variablesAnalyzed=len(ranking),
+        variablesSelected=len(selected),
         metricsUsed=len(active_metrics),
+        metricSummaries=metric_summaries,
     )
 
     analysis_context = AnalysisContext(

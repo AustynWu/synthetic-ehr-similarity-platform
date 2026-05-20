@@ -22,10 +22,21 @@
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 
 from routers import upload, validation, evaluation, comparisons
+from db.session import create_tables
 
-app = FastAPI(title="Synthetic vs Real EHR Similarity API")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Runs once when the server starts — creates DB tables if they don't exist.
+    # create_tables() is a no-op when DB_URL is not set (no DB configured).
+    create_tables()
+    yield
+
+
+app = FastAPI(title="Synthetic vs Real EHR Similarity API", lifespan=lifespan)
 
 # CORS is required because the frontend (Vite dev server on port 5173) and this
 # backend (uvicorn on port 8000) run as separate processes with different origins.

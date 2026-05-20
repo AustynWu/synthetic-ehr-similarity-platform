@@ -12,7 +12,7 @@ Upload two CSV datasets, run statistical similarity metrics, and view results in
 | Backend | Python 3.12 + FastAPI |
 | Data / Stats | pandas, numpy, scipy, scikit-learn |
 | Frontend | React 18 + Vite + TypeScript |
-| Database | PostgreSQL 16 (planned — currently in-memory) |
+| Database | MySQL 8 (default) or PostgreSQL 16 (supervisor backup, one-line switch) |
 | Deployment | Docker Compose |
 
 ---
@@ -23,15 +23,19 @@ Upload two CSV datasets, run statistical similarity metrics, and view results in
 synthetic-ehr-similarity-platform-prototype/
 ├── backend/
 │   ├── main_new.py          # entry point (modular version)
-│   ├── main.py              # original monolithic version
 │   ├── schemas.py           # Pydantic request/response models
 │   ├── constants.py         # thresholds and shared config
-│   ├── state.py             # in-memory state (datasets, results)
+│   ├── state.py             # in-memory state for uploaded CSVs
+│   ├── .env                 # local env variables (DB_TYPE, DB_USER etc — not committed)
+│   ├── db/
+│   │   ├── session.py       # SQLAlchemy engine, DB_AVAILABLE flag
+│   │   ├── models.py        # EvaluationRun ORM table
+│   │   └── repository.py    # save / list / get_by_id / delete
 │   ├── routers/
 │   │   ├── upload.py        # POST /datasets/upload
 │   │   ├── validation.py    # POST /datasets/validate
 │   │   ├── evaluation.py    # POST /evaluations/run
-│   │   └── comparisons.py   # GET/POST /comparisons
+│   │   └── comparisons.py   # GET/POST /comparisons (DB + in-memory fallback)
 │   ├── services/
 │   │   ├── metrics.py       # statistical metric calculations
 │   │   ├── type_inference.py
@@ -46,9 +50,13 @@ synthetic-ehr-similarity-platform-prototype/
 │   │   ├── components/      # reusable UI components
 │   │   ├── services/        # API client (dataset, evaluation, comparison)
 │   │   └── types/contracts.ts
+│   ├── Dockerfile           # Node build → nginx serve (two-stage)
+│   ├── nginx.conf           # SPA routing config for React Router
 │   └── package.json
 ├── datasets/                # sample data (real + synthetic diabetic dataset)
 ├── docker-compose.yml
+├── .env                     # Docker Compose credentials (not committed)
+├── .env.example             # credentials template (safe to commit)
 └── README.md
 ```
 
@@ -87,25 +95,41 @@ Interactive API docs: `http://localhost:8000/docs`
 ### Requirements
 - Docker Desktop
 
-### Start services
+### First-time setup
 
-From the repo root:
 ```bash
-docker compose up -d --build
-docker ps
+# 1. Copy the credentials template and edit if needed (default values work out of the box)
+cp .env.example .env
+
+# 2. Build images and start all services (MySQL + backend + frontend)
+docker compose up --build
 ```
 
-- Backend API: http://localhost:8000/docs
 - Frontend: http://localhost:5173
+- Backend API docs: http://localhost:8000/docs
 
-View backend logs:
+The backend image is built from `backend/Dockerfile` and the frontend from `frontend/Dockerfile`.
+On first run, Docker installs all Python and Node dependencies inside the images — this takes a few minutes.
+Subsequent runs reuse the cached layers and start much faster.
+
+### Useful commands
+
 ```bash
+# Run in background
+docker compose up -d --build
+
+# View logs
 docker compose logs -f backend
-```
+docker compose logs -f frontend
 
-Stop:
-```bash
+# Rebuild one service after changing its Dockerfile or dependencies
+docker compose up --build backend
+
+# Stop and keep DB data
 docker compose down
+
+# Stop and wipe DB data (full reset)
+docker compose down -v
 ```
 
 ---
@@ -165,8 +189,45 @@ All metrics are normalised to a **0–1 score** (1 = identical distributions).
 
 ---
 
+## Database Configuration
+
+Saved comparison runs are stored in a database so they survive server restarts.
+The database driver is chosen by a single environment variable — no code changes needed.
+
+### Supported databases
+
+| Database | DB_TYPE value | Port | Notes |
+|----------|--------------|------|-------|
+| **MySQL** *(default)* | `mysql` | 3306 | Teammate's original setup |
+| **PostgreSQL** *(supervisor backup)* | `postgres` | 5432 | Required by course supervisor |
+| **None** *(fallback)* | *(leave DB_TYPE empty)* | — | In-memory only — data lost on restart |
+
+Only one database is active at a time. Both drivers (`psycopg2-binary` and `pymysql`)
+are installed so switching requires only two line changes.
+
+### How to switch to PostgreSQL
+
+**Local development — edit `backend/.env`:**
+```
+DB_TYPE=postgres
+DB_PORT=5432
+```
+
+**Docker Compose — edit `docker-compose.yml`:**
+1. Comment out the `db_mysql` service block, uncomment `db_postgres`.
+2. In the `backend` service, change `depends_on` to `db_postgres`.
+3. Change `DB_TYPE: mysql` → `DB_TYPE: postgres` and `DB_PORT: "3306"` → `DB_PORT: "5432"`.
+
+### Why two databases are supported
+
+The course supervisor requires **PostgreSQL**, but the teammate's original
+implementation used **MySQL**. Since SQLAlchemy abstracts the database layer,
+both are fully supported with no code duplication — only `DB_TYPE` and `DB_PORT` differ.
+
+---
+
 ## Notes
 
-- Do NOT commit real or sensitive datasets to Git.
-- Backend state is currently in-memory — data is lost on server restart.
-- PostgreSQL integration is planned as the next major milestone.
+- Uploaded CSV files are temporary — they are lost on server restart and must be
+  re-uploaded. This is by design for a prototype; only the evaluation *results* are persisted.
+- The `backend/.env` file is not committed to git. Add it to `.gitignore`.

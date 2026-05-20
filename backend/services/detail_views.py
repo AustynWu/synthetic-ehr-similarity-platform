@@ -64,22 +64,44 @@ def build_detail_series(
         is_integer_col = False
 
     if is_integer_col and n_unique <= 20:
-        # One bin per value — keeps individual integer values on the x-axis.
+        # Use value_counts so each integer gets its own label ("1", "2", ...).
+        # pd.cut would merge values 1 and 2 into one bin [1,2], giving the "1-2" range label.
         col_min_int = int(real_clean.min())
         col_max_int = int(real_clean.max())
-        bin_edges = list(range(col_min_int, col_max_int + 2))
-        real_cut = pd.cut(real_col, bins=bin_edges, include_lowest=True)
-        syn_clip = syn_col.clip(col_min_int, col_max_int)
+        real_prop = real_col.value_counts(normalize=True)
+        real_raw  = real_col.value_counts(normalize=False)
+        syn_clip  = syn_col.clip(col_min_int, col_max_int)
+        syn_prop  = syn_clip.value_counts(normalize=True)
+        syn_raw   = syn_clip.value_counts(normalize=False)
+        return [
+            DetailViewSeries(
+                label=str(v),
+                real=round(float(real_prop.get(v, 0.0)), 4),
+                synthetic=round(float(syn_prop.get(v, 0.0)), 4),
+                binLeft=float(v),
+                binRight=float(v + 1),
+                realCount=int(real_raw.get(v, 0)),
+                syntheticCount=int(syn_raw.get(v, 0)),
+            )
+            for v in range(col_min_int, col_max_int + 1)
+        ]
 
     elif is_integer_col:
-        # Integer-aligned bins for large integer columns (> 20 unique values).
-        # Avoids decimal bin edges that cause overlapping labels (e.g. "14–14").
         col_min_int = int(real_clean.min())
         col_max_int = int(real_clean.max())
-        bin_width = max(1, math.ceil((col_max_int - col_min_int + 1) / _HISTOGRAM_BINS))
-        edges = list(range(col_min_int, col_max_int + 1, bin_width))
-        if edges[-1] <= col_max_int:
-            edges.append(col_max_int + 1)
+        # Round bin_width up to the nearest standard interval (1, 2, 5, 10, 20 ...).
+        # This keeps x-axis edges at clean numbers like 0, 10, 20 instead of 1, 10, 19, 28.
+        raw_width = max(1, math.ceil((col_max_int - col_min_int + 1) / _HISTOGRAM_BINS))
+        _NICE_STEPS = [1, 2, 5, 10, 20, 25, 50, 100, 200, 500, 1000]
+        bin_width = next((n for n in _NICE_STEPS if n >= raw_width), raw_width)
+        # Start from the largest multiple of bin_width at or below col_min_int (usually 0).
+        bin_start = (col_min_int // bin_width) * bin_width
+        edges = []
+        v = bin_start
+        while v <= col_max_int:
+            edges.append(v)
+            v += bin_width
+        edges.append(v)  # one closing edge beyond col_max_int
         real_cut = pd.cut(real_col.clip(col_min_int, col_max_int), bins=edges, include_lowest=True)
         syn_clip = syn_col.clip(col_min_int, col_max_int)
         # Return early with non-overlapping labels.

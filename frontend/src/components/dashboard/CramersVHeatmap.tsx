@@ -1,8 +1,10 @@
-// CramersVHeatmap.tsx — difference heatmap for Categorical–Categorical Cramér's V
+// CramersVHeatmap.tsx — correlation similarity heatmap for Categorical–Categorical Cramér's V
 //
-// Shows abs(real Cramér's V − synthetic Cramér's V) for every variable pair.
-// White = identical association strength, deep red = large difference.
-// Hover over any cell for exact real / synthetic / delta values.
+// Each cell shows 1 − |real Cramér's V − synthetic Cramér's V|, i.e. how similar
+// the two datasets' categorical association is for that variable pair.
+// 1.00 = identical association (diagonal is always 1), 0.00 = completely different.
+// White = low similarity, dark blue = high similarity.
+// Hover over any cell for exact real V, synthetic V, and |ΔV| values.
 //
 // Variables shown are pre-selected by the backend using an activity score:
 // only the variables that appear most often in high-difference pairs are included.
@@ -10,13 +12,13 @@
 
 import { useState } from "react";
 
-// Linear interpolation: white (diff = 0) → red-600 (diff = 1).
+// Linear interpolation: white (sim = 0) → blue-600 (sim = 1).
 // Matches the same colour scale used in CorrelationHeatmap for visual consistency.
-function diffColor(diff: number): string {
-  const d = Math.min(Math.max(diff, 0), 1);
-  const r = Math.round(255 - 35  * d);
-  const g = Math.round(255 - 217 * d);
-  const b = Math.round(255 - 217 * d);
+function simColor(sim: number): string {
+  const s = Math.min(Math.max(sim, 0), 1);
+  const r = Math.round(255 - 218 * s); // 255 → 37
+  const g = Math.round(255 - 156 * s); // 255 → 99
+  const b = Math.round(255 - 20  * s); // 255 → 235
   return `rgb(${r},${g},${b})`;
 }
 
@@ -130,37 +132,43 @@ export default function CramersVHeatmap({ variables, realMatrix, synMatrix, note
                           width: 40,
                           height: 32,
                           border: "1px solid #e2e8f0",
+                          textAlign: "center",
+                          fontSize: 10,
+                          color: "#94a3b8",
                         }}
-                      />
+                      >
+                        N/A
+                      </td>
                     );
                   }
 
                   const diff = Math.abs(realV - synV);
+                  const sim  = 1 - diff;
 
                   return (
                     <td
                       key={colVar}
                       onMouseEnter={(e) =>
                         setTooltip({
-                          text: `${rowVar} × ${colVar}\nReal V:  ${realV.toFixed(3)}\nSyn V:   ${synV.toFixed(3)}\n|ΔV|:    ${diff.toFixed(3)}`,
+                          text: `${rowVar} × ${colVar}\nReal V:     ${realV.toFixed(3)}\nSyn V:      ${synV.toFixed(3)}\n|ΔV|:       ${diff.toFixed(3)}\nSimilarity: ${sim.toFixed(3)}`,
                           x: e.clientX,
                           y: e.clientY,
                         })
                       }
                       onMouseLeave={() => setTooltip(null)}
                       style={{
-                        background: diffColor(diff),
+                        background: simColor(sim),
                         width: 40,
                         height: 32,
                         border: "1px solid #e2e8f0",
                         textAlign: "center",
                         fontSize: 11,
                         cursor: "default",
-                        color: diff > 0.4 ? "#fff" : "#374151",
-                        fontWeight: diff > 0.2 ? 600 : 400,
+                        color: sim > 0.5 ? "#fff" : "#374151",
+                        fontWeight: sim < 0.8 ? 600 : 400,
                       }}
                     >
-                      {diff.toFixed(3)}
+                      {sim.toFixed(3)}
                     </td>
                   );
                 })}
@@ -180,18 +188,18 @@ export default function CramersVHeatmap({ variables, realMatrix, synMatrix, note
         fontSize: 11,
         color: "#64748b",
       }}>
-        <span>|ΔV|:</span>
+        <span>Similarity:</span>
         <span>Low</span>
         <div style={{
           width: 80,
           height: 10,
-          background: "linear-gradient(to right, white, rgb(220,38,38))",
+          background: "linear-gradient(to right, white, rgb(37,99,235))",
           border: "1px solid #e2e8f0",
           borderRadius: 2,
         }} />
         <span>High</span>
         <span style={{ marginLeft: 12, fontStyle: "italic" }}>
-          Each cell = |real Cramér's V − synthetic Cramér's V|
+          Each cell = 1 − |real Cramér's V − synthetic Cramér's V| &nbsp;(1 = identical, diagonal = 1)
         </span>
       </div>
 

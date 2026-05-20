@@ -5,3 +5,11 @@ pandas==3.0.2
 numpy==2.1.3
 scipy==1.17.1
 python-multipart==0.0.27
+
+# Database support — both drivers are installed so you can switch between
+# PostgreSQL and MySQL by changing DB_URL in .env (no code changes needed).
+# See README.md > Database Configuration for instructions.
+sqlalchemy==2.0.36
+psycopg2-binary==2.9.9   # PostgreSQL driver (teacher requirement)
+pymysql==1.1.1            # MySQL driver (teammate's original setup)
+python-dotenv==1.0.1      # reads .env file into os.getenv()

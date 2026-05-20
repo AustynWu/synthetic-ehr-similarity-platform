@@ -13,7 +13,6 @@
 //
 // Mock data is preserved and never deleted — it is always the fallback.
 
-// import { mockSavedComparisons } from "../mocks/comparisons"; // mock data — disabled for production
 import type { EvaluationConfig, EvaluationResult, SavedComparison, UploadedDatasets } from "../types/contracts";
 import { USE_REAL_API, apiGet, apiPost } from "./apiClient";
 
