@@ -37,6 +37,11 @@ _mem_comparisons: list[SavedComparison] = []
 _mem_results: dict[str, EvaluationResult] = {}
 
 
+def _clean_metric(s: str) -> str:
+    # handles old DB records stored as "EvaluationMetric.mean_difference" before the fix
+    return s.split(".")[-1] if "." in s else s
+
+
 # ── Helper: build a SavedComparison from an ORM record ────────────────────────
 def _row_to_summary(row) -> SavedComparison:
     """Convert a db EvaluationRun row to the SavedComparison schema the
@@ -49,7 +54,7 @@ def _row_to_summary(row) -> SavedComparison:
         realDatasetName=row.real_dataset_name or "",
         syntheticDatasetName=row.synthetic_dataset_name or "",
         overallSimilarityScore=float(row.overall_similarity_score or 0),
-        metricsUsed=row.metrics_used or [],
+        metricsUsed=[_clean_metric(m) for m in (row.metrics_used or [])],
         status=row.status or "completed",
     )
 
