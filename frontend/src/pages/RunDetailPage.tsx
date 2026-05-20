@@ -274,7 +274,7 @@ export default function RunDetailPage({
       {numericalVars.length > 0 && (
         <PageSection
           title="Numerical Variables"
-          description="Distribution shape comparison using histogram / KDE plots."
+          description="Distribution shape comparison using histogram plots."
         >
           <div className="detail-chart-grid">
             {numericalVars.map((v) => (
@@ -357,7 +357,7 @@ export default function RunDetailPage({
           {mv.realCorrelationMatrix && mv.synCorrelationMatrix && (
             <SectionCard
               title="Correlation Similarity Heatmap"
-              subtitle="Each cell = 1 − |real Pearson r − synthetic Pearson r|. 1 = identical, 0 = completely different. Hover for exact values."
+              subtitle="Each cell = 1 − |real Pearson r − synthetic Pearson r|. 1 = identical, lower = more different (min −1). Hover for exact values."
             >
               <CorrelationHeatmap
                 variables={Object.keys(mv.realCorrelationMatrix)}

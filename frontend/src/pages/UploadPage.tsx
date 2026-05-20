@@ -70,13 +70,13 @@ export default function UploadPage({
     <div className="page-stack">
       {/* Upload cards */}
       <PageSection
-        title="Upload diabetes datasets"
-        description="real diabetic dataset and supervisor-provided synthetic file."
+        title="Upload Datasets"
+        description="Upload two CSV files: a real dataset and a synthetic dataset."
       >
         <div className="two-column-grid">
           <UploadCard
             title="Real dataset"
-            description="diabetic_data.csv as the real EHR baseline."
+            description="The real dataset used as the baseline."
             file={realFile}
             error={realFileError}
             onSelectFile={(event) => {
@@ -89,7 +89,7 @@ export default function UploadPage({
           />
           <UploadCard
             title="Synthetic dataset"
-            description="V1_syn.csv as the synthetic dataset."
+            description="The synthetic dataset to evaluate against the real data."
             file={syntheticFile}
             error={syntheticFileError}
             onSelectFile={(event) => {
@@ -106,7 +106,7 @@ export default function UploadPage({
       {/* Detected dataset summary — mirrors the dataset pair used throughout the prototype */}
       <PageSection
         title="Detected dataset summary"
-        description="These cards mirror the dataset pair used throughout the prototype flow."
+        description="Summary of the files selected for this comparison."
       >
         <div className="summary-grid three-up">
           {/* ?? — use left value if available, fall back to right */}
@@ -133,7 +133,7 @@ export default function UploadPage({
                 ? `${formatSize(uploadedDatasets.syntheticDataset.sizeBytes)} uploaded`
                 : "Select a CSV file to begin"
             }
-            badge="Supervisor file"
+            badge="Synthetic"
             tone="info"
           />
           {/* IDS_mapping.csv is an optional column description reference

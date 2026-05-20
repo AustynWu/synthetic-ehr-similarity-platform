@@ -432,7 +432,7 @@ export default function ResultsPage({
       {mv?.realCorrelationMatrix && mv?.synCorrelationMatrix && (
         <SectionCard
           title="Numerical–Numerical: Correlation Similarity Heatmap"
-          subtitle="Each cell = 1 − |real Pearson r − synthetic Pearson r|. 1 = identical, 0 = completely different. Hover for exact values."
+          subtitle="Each cell = 1 − |real Pearson r − synthetic Pearson r|. 1 = identical, lower = more different (min −1). Hover for exact values."
         >
           <CorrelationHeatmap
             variables={Object.keys(mv.realCorrelationMatrix)}

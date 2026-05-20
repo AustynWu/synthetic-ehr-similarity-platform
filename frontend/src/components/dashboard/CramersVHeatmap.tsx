@@ -2,7 +2,7 @@
 //
 // Each cell shows 1 − |real Cramér's V − synthetic Cramér's V|, i.e. how similar
 // the two datasets' categorical association is for that variable pair.
-// 1.00 = identical association (diagonal is always 1), 0.00 = completely different.
+// 1.00 = identical association (diagonal is always 1), 0.00 = completely different (guaranteed range 0–1).
 // White = low similarity, dark blue = high similarity.
 // Hover over any cell for exact real V, synthetic V, and |ΔV| values.
 //

@@ -2,7 +2,7 @@
 //
 // Each cell shows 1 − |real Pearson r − synthetic Pearson r|, i.e. how similar
 // the two datasets' correlation is for that variable pair.
-// 1.00 = identical correlation (diagonal is always 1), 0.00 = completely different.
+// 1.00 = identical correlation (diagonal is always 1), lower = more different (min −1).
 // White = low similarity, dark blue = high similarity.
 // Hover over any cell for exact real r, synthetic r, and |Δr| values.
 

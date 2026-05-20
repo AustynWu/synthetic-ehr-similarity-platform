@@ -138,7 +138,7 @@ export default function ValidationPage({ validationSummary, goToPage }: SharedPa
       {/* Dataset stat cards */}
       <PageSection
         title="Validation summary"
-        description="Review schema alignment and high-missing diabetes fields before running the first comparison."
+        description="Review schema alignment and data quality before running the evaluation."
       >
         {/*
           Two-column layout: real dataset on the left, synthetic on the right.

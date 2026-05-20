@@ -58,8 +58,8 @@ def _select_active_corr_vars(
     if total <= max_vars:
         note = (
             f"All {total} numerical variable{'s' if total != 1 else ''} are shown. "
-            "Each cell shows the absolute difference in Pearson correlation "
-            "between real and synthetic data (0 = identical, 1 = completely different)."
+            "Each cell shows the similarity score (1 − |Δr|): "
+            "1 = identical, lower = more different (min −1, since Pearson r ranges −1 to +1)."
         )
     else:
         note = (
@@ -119,8 +119,8 @@ def _select_active_cramers_vars(
     if total <= max_vars:
         note = (
             f"All {total} categorical variable{'s' if total != 1 else ''} are shown. "
-            "Each cell shows the absolute difference in Cramér's V association strength "
-            "between real and synthetic data (0 = identical, 1 = completely different)."
+            "Each cell shows the similarity score (1 − |ΔV|): "
+            "1 = identical, 0 = completely different (Cramér's V ranges 0–1, so this score is always 0–1)."
         )
     else:
         note = (

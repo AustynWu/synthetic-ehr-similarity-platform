@@ -294,7 +294,7 @@ export default function SetupPage({
       {/* Row 1: variable selection (full width, shown first so users pick columns before metrics) */}
       <PageSection
         title="Evaluation setup"
-        description="Choose the variables and metrics to preview in the similarity prototype."
+        description="Choose the variables and metrics to include in the evaluation."
       >
         <SectionCard
           title="Variable selection"
