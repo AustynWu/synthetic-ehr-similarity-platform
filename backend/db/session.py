@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-load_dotenv()
+load_dotenv()  # loads backend/.env for local dev; does NOT override vars already set by Docker Compose
 
 # ── Read individual connection settings from environment ───────────────────────
 DB_TYPE     = os.getenv("DB_TYPE", "").strip().lower()   # "postgres" | "mysql" | ""
@@ -38,6 +38,9 @@ else:
 # DB_AVAILABLE is imported by comparisons.py to decide whether to use DB or in-memory fallback
 DB_AVAILABLE: bool = bool(_DB_URL)
 
+# Base is the parent class for all ORM table definitions (models.py inherits from it).
+# Defining it here (not in models.py) ensures all models share the same metadata object,
+# which create_all() needs to know about every table before creating them.
 Base = declarative_base()
 
 # Only create the engine if a valid DB_TYPE was provided
@@ -47,6 +50,8 @@ if DB_AVAILABLE:
         echo=False,          # set True temporarily to print SQL queries for debugging
         pool_pre_ping=True,  # checks connection health before each use
     )
+    # autocommit=False: changes only save when db.commit() is called explicitly
+    # autoflush=False: SQLAlchemy won't auto-sync pending changes before every query
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 else:
     engine = None
@@ -77,6 +82,7 @@ def create_tables():
         return
     from db import models  # noqa: F401 — registers models with Base before create_all
     try:
+        # create_all skips any table that already exists — safe to call on every restart
         Base.metadata.create_all(bind=engine)
         print(f"✅ Database tables ready ({DB_TYPE.upper()} @ {DB_HOST}:{DB_PORT}/{DB_NAME})")
     except Exception as e:
