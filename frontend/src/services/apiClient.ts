@@ -76,6 +76,17 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
 }
 
 
+// DELETE request — removes a resource, expects 204 No Content (no response body).
+export async function apiDelete(path: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}${path}`, { method: "DELETE" });
+  if (!res.ok) {
+    let detail = "";
+    try { detail = (await res.json()).detail ?? ""; } catch { /* body is not JSON */ }
+    throw new Error(detail || `DELETE ${path} failed: ${res.status} ${res.statusText}`);
+  }
+}
+
+
 // POST with multipart/form-data — the correct way to send files over HTTP.
 // FormData is a browser built-in that packages files and text fields together.
 export async function apiUpload<T>(path: string, formData: FormData): Promise<T> {

@@ -14,7 +14,7 @@
 // Mock data is preserved and never deleted — it is always the fallback.
 
 import type { EvaluationConfig, EvaluationResult, SavedComparison, UploadedDatasets } from "../types/contracts";
-import { USE_REAL_API, apiGet, apiPost } from "./apiClient";
+import { USE_REAL_API, apiGet, apiPost, apiDelete } from "./apiClient";
 
 
 // Returns the list of all saved comparison runs.
@@ -79,4 +79,15 @@ export async function saveCurrentComparison({
 // Real API: GET /comparisons/{runId} → backend returns the stored EvaluationResult.
 export async function getComparisonDetail(runId: string): Promise<EvaluationResult> {
   return apiGet<EvaluationResult>(`/comparisons/${runId}`);
+}
+
+
+// Delete one saved run by ID, then return the refreshed list so App.tsx can update state.
+// Real API: DELETE /comparisons/{runId} → 204 No Content, then GET /comparisons for fresh list.
+export async function deleteComparison(runId: string): Promise<SavedComparison[]> {
+  if (USE_REAL_API) {
+    await apiDelete(`/comparisons/${runId}`);
+    return apiGet<SavedComparison[]>("/comparisons");
+  }
+  throw new Error("Real API mode is required to delete comparisons.");
 }

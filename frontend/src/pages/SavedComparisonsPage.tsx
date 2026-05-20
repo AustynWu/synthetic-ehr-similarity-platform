@@ -15,9 +15,11 @@ export default function SavedComparisonsPage({
   goToPage,
   onViewRunDetail,
   isLoadingRunDetail,
+  onRequestDeleteRun,
 }: SharedPageProps & {
   onViewRunDetail: (comparison: SavedComparison) => void;
   isLoadingRunDetail?: boolean;
+  onRequestDeleteRun?: (run: SavedComparison) => void;
 }) {
   // Guard: no saved runs yet
   if (!savedComparisons || savedComparisons.length === 0) {
@@ -74,7 +76,7 @@ export default function SavedComparisonsPage({
                         {run.status}
                       </StatusBadge>
                     </td>
-                    <td>
+                    <td className="action-cell">
                       <PrimaryButton
                         variant="secondary"
                         onClick={() => onViewRunDetail(run)}
@@ -82,6 +84,14 @@ export default function SavedComparisonsPage({
                       >
                         {isLoadingRunDetail ? "Loading..." : "View"}
                       </PrimaryButton>
+                      {onRequestDeleteRun && (
+                        <PrimaryButton
+                          variant="danger"
+                          onClick={() => onRequestDeleteRun(run)}
+                        >
+                          Delete
+                        </PrimaryButton>
+                      )}
                     </td>
                   </tr>
                 ))}

@@ -455,7 +455,7 @@ export interface PageSectionProps {
 // PrimaryButton props
 export interface PrimaryButtonProps {
   children: ReactNode;
-  variant?: "primary" | "secondary" | "ghost";
+  variant?: "primary" | "secondary" | "ghost" | "danger";
   onClick?: MouseEventHandler<HTMLButtonElement>;
   disabled?: boolean;
 }

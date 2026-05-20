@@ -26,6 +26,7 @@ from db.repository import (
     save_evaluation_run,
     get_all_evaluation_runs,
     get_evaluation_run_by_id,
+    delete_evaluation_run,
 )
 
 router = APIRouter()
@@ -138,3 +139,24 @@ def get_comparison_detail(
     if not result:
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found.")
     return result
+
+
+# ── DELETE /comparisons/{run_id} ──────────────────────────────────────────────
+@router.delete("/comparisons/{run_id}", status_code=204)
+def delete_comparison(
+    run_id: str,
+    db: Annotated[Session, Depends(get_db)] if DB_AVAILABLE else None,
+):
+    if DB_AVAILABLE:
+        deleted = delete_evaluation_run(db, run_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found.")
+        return
+
+    # Fallback: remove from in-memory lists
+    global _mem_comparisons, _mem_results
+    original_len = len(_mem_comparisons)
+    _mem_comparisons = [c for c in _mem_comparisons if c.id != run_id]
+    _mem_results.pop(run_id, None)
+    if len(_mem_comparisons) == original_len:
+        raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found.")

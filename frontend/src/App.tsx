@@ -15,6 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import AppLayout from "./components/layout/AppLayout";
 import ErrorModal from "./components/ui/ErrorModal";
+import ConfirmModal from "./components/ui/ConfirmModal";
 
 import UploadPage from "./pages/UploadPage";
 import ValidationPage from "./pages/ValidationPage";
@@ -27,7 +28,7 @@ import { navigationItems, pageTitles } from "./utils/navigation";
 
 import { uploadDatasets, getValidationSummary, useDefaultDatasets } from "./services/datasetService";
 import { getDefaultEvaluationConfig, runEvaluation } from "./services/evaluationService";
-import { getSavedComparisons, saveCurrentComparison, getComparisonDetail } from "./services/comparisonService";
+import { getSavedComparisons, saveCurrentComparison, getComparisonDetail, deleteComparison } from "./services/comparisonService";
 
 import type {
   EvaluationConfig,
@@ -81,6 +82,9 @@ export default function App() {
 
   // True after the current evaluation result has been saved — resets when a new evaluation runs
   const [hasSaved, setHasSaved] = useState(false);
+
+  // Holds the run waiting for delete confirmation — null means modal is closed
+  const [confirmDelete, setConfirmDelete] = useState<SavedComparison | null>(null);
 
   // State for View Run Details — holds the selected run's full result and metadata
   const [runDetailResult, setRunDetailResult] = useState<EvaluationResult | null>(null);
@@ -251,6 +255,24 @@ export default function App() {
     }
   };
 
+  // Called when user clicks "Delete" on a saved run row — opens ConfirmModal
+  const handleRequestDeleteRun = (run: SavedComparison) => {
+    setConfirmDelete(run);
+  };
+
+  // Called when user confirms deletion inside ConfirmModal
+  const handleConfirmDelete = async () => {
+    if (!confirmDelete) return;
+    const runId = confirmDelete.id;
+    setConfirmDelete(null);
+    try {
+      const updated = await deleteComparison(runId);
+      setSavedComparisons(updated);
+    } catch (err) {
+      setErrorModal({ title: "Delete Failed", message: err instanceof Error ? err.message : "Delete failed. Please check the backend is running." });
+    }
+  };
+
   // Called when user clicks "Save Comparison" on Results page
   const handleSaveComparison = async () => {
     if (!evaluationResult) return;
@@ -290,11 +312,11 @@ export default function App() {
       case "results":
         return <ResultsPage {...sharedPageProps} onSaveComparison={handleSaveComparison} isLoading={isSaving} hasSaved={hasSaved} />;
       case "saved":
-        return <SavedComparisonsPage {...sharedPageProps} onViewRunDetail={handleViewRunDetail} isLoadingRunDetail={isLoadingRunDetail} />;
+        return <SavedComparisonsPage {...sharedPageProps} onViewRunDetail={handleViewRunDetail} isLoadingRunDetail={isLoadingRunDetail} onRequestDeleteRun={handleRequestDeleteRun} />;
       case "runDetail":
         return runDetailResult && runDetailComparison
           ? <RunDetailPage evaluationResult={runDetailResult} savedComparison={runDetailComparison} goToPage={setCurrentPage} />
-          : <SavedComparisonsPage {...sharedPageProps} onViewRunDetail={handleViewRunDetail} isLoadingRunDetail={isLoadingRunDetail} />;
+          : <SavedComparisonsPage {...sharedPageProps} onViewRunDetail={handleViewRunDetail} isLoadingRunDetail={isLoadingRunDetail} onRequestDeleteRun={handleRequestDeleteRun} />;
       default:
         return <UploadPage {...sharedPageProps} onContinue={handleUploadContinue} />;
     }
@@ -315,6 +337,15 @@ export default function App() {
           title={errorModal.title}
           message={errorModal.message}
           onClose={() => setErrorModal(null)}
+        />
+      )}
+      {confirmDelete && (
+        <ConfirmModal
+          title="Delete Run"
+          message={`Delete "${confirmDelete.runName}"? This cannot be undone.`}
+          confirmLabel="Delete"
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setConfirmDelete(null)}
         />
       )}
     </AppLayout>
