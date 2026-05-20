@@ -445,6 +445,12 @@ p {
 
 /* ── Print styles ─────────────────────────────────────────────── */
 @media print {
+  /* force background colours to print — heatmap cell colours use inline background */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
   /* hide navigation, sidebar, buttons */
   .no-print,
   nav,
