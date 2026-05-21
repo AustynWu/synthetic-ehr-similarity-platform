@@ -10,7 +10,7 @@ Upload two CSV datasets, run statistical similarity metrics, and view results in
 | Layer | Technology |
 |-------|-----------|
 | Backend | Python 3.12 + FastAPI |
-| Data / Stats | pandas, numpy, scipy, scikit-learn |
+| Data / Stats | pandas, numpy, scipy |
 | Frontend | React 18 + Vite + TypeScript |
 | Database | MySQL 8 (default) or PostgreSQL 16 (supervisor backup, one-line switch) |
 | Deployment | Docker Compose |
