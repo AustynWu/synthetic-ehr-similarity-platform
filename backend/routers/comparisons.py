@@ -64,7 +64,7 @@ def _row_to_summary(row) -> SavedComparison:
 @router.post("/comparisons/save", response_model=SavedComparison)
 def save_comparison(
     req: SaveComparisonRequest,
-    db: Annotated[Session, Depends(get_db)] if DB_AVAILABLE else None,
+    db: Annotated[Session | None, Depends(get_db)],
 ):
     now    = datetime.now(timezone.utc)
     result = req.evaluationResult
@@ -108,7 +108,7 @@ def save_comparison(
 # ── GET /comparisons ───────────────────────────────────────────────────────────
 @router.get("/comparisons", response_model=list[SavedComparison])
 def get_comparisons(
-    db: Annotated[Session, Depends(get_db)] if DB_AVAILABLE else None,
+    db: Annotated[Session | None, Depends(get_db)],
 ):
     if DB_AVAILABLE:
         # Returns lightweight summaries only — result_json is not included
@@ -124,7 +124,7 @@ def get_comparisons(
 @router.get("/comparisons/{run_id}", response_model=EvaluationResult)
 def get_comparison_detail(
     run_id: str,
-    db: Annotated[Session, Depends(get_db)] if DB_AVAILABLE else None,
+    db: Annotated[Session | None, Depends(get_db)],
 ):
     if DB_AVAILABLE:
         row = get_evaluation_run_by_id(db, run_id)
@@ -145,7 +145,7 @@ def get_comparison_detail(
 @router.delete("/comparisons/{run_id}", status_code=204)
 def delete_comparison(
     run_id: str,
-    db: Annotated[Session, Depends(get_db)] if DB_AVAILABLE else None,
+    db: Annotated[Session | None, Depends(get_db)],
 ):
     if DB_AVAILABLE:
         deleted = delete_evaluation_run(db, run_id)

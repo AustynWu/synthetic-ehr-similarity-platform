@@ -156,9 +156,9 @@ def run_evaluation(req: RunEvaluationRequest):
 
     # ── Step 8a: metric matrix (heatmap) ─────────────────────────────────────
     cells: list[MetricMatrixCell] = [
-        MetricMatrixCell(variable=col, metric=metric, normalizedScore=round(score, 4))
+        MetricMatrixCell(variable=col, metric=metric, normalizedScore=round(score, 4), rawValue=round(raw, 4))
         for col in selected
-        for metric, (_, score) in raw_results[col].items()
+        for metric, (raw, score) in raw_results[col].items()
     ]
 
     # ── Step 8b: variable ranking ─────────────────────────────────────────────

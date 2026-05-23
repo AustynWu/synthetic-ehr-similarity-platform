@@ -95,17 +95,21 @@ function VariableCard({ v, detailViews }: {
           <StatusBadge tone={v.type === "numerical" ? "info" : "success"}>
             {v.type}
           </StatusBadge>
-          <StatusBadge tone={scoreTone(v.similarityScore)}>
-            {v.similarityScore.toFixed(3)}
-          </StatusBadge>
+          {/* HIDDEN — supervisor meeting 2026-05-23: normalized similarity score
+              badge removed from variable card header. "No scores, no status." */}
+          {false && (
+            <StatusBadge tone={scoreTone(v.similarityScore)}>
+              {v.similarityScore.toFixed(3)}
+            </StatusBadge>
+          )}
         </div>
       </div>
 
       {/* Distribution chart */}
       <div className="detail-chart-card-chart">
         {detail.chartType === "histogram_kde"
-          ? <DistributionChart points={chartPoints} />
-          : <ComparisonChart   points={chartPoints} />
+          ? <DistributionChart points={chartPoints} xAxisLabel={detail.xAxisLabel} yAxisLabel={detail.yAxisLabel} />
+          : <ComparisonChart   points={chartPoints} yAxisLabel={detail.yAxisLabel} />
         }
       </div>
 
@@ -114,20 +118,27 @@ function VariableCard({ v, detailViews }: {
         <thead>
           <tr>
             <th>Metric</th>
-            <th>Raw value</th>
-            <th>Score</th>
+            <th>Value</th>
+            {/* HIDDEN — supervisor meeting 2026-05-23: normalized score badge
+                removed. Raw metric values are sufficient and more transparent.
+                "No scores, no status." */}
+            {false && <th>Score</th>}
           </tr>
         </thead>
         <tbody>
-          {detail.metrics.map((m) => (
+          {/* correlation_difference hidden here — it is a cross-variable metric
+              and belongs in the multivariate section, not per-variable detail */}
+          {detail.metrics.filter(m => m.name !== "correlation_difference").map((m) => (
             <tr key={m.name}>
               <td>{metricLabel(m.name)}</td>
               <td>{m.value.toFixed(3)}</td>
-              <td>
-                <StatusBadge tone={scoreTone(m.normalizedScore)}>
-                  {m.normalizedScore.toFixed(3)}
-                </StatusBadge>
-              </td>
+              {false && (
+                <td>
+                  <StatusBadge tone={scoreTone(m.normalizedScore)}>
+                    {m.normalizedScore.toFixed(3)}
+                  </StatusBadge>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
@@ -193,45 +204,52 @@ export default function RunDetailPage({
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* SECTION 1 — SUMMARY                                                   */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      <PageSection
-        title="Indicative Similarity Summary"
-        description="These scores are statistical estimates only. They do not guarantee clinical equivalence or suitability for any specific use case."
-      >
-
-        {/* Per-metric similarity — one SummaryCard per metric, grouped by category */}
-        {(["numerical", "categorical", "relationship"] as const).map((cat) => {
-          const rows = summary.metricSummaries.filter((m) => m.category === cat);
-          if (rows.length === 0) return null;
-          const catLabel = cat === "numerical" ? "Numerical Similarity" : cat === "categorical" ? "Categorical Similarity" : "Relationship Similarity";
-          const catNote = "Average score per metric across applicable variables";
-          return (
-            <div key={cat} style={{ marginTop: 20 }}>
-              <div style={{ marginBottom: 8 }}>
-                <span style={{ fontWeight: 600, fontSize: 13, color: "#1e293b" }}>{catLabel}</span>
-                <span style={{ fontSize: 12, color: "#94a3b8", marginLeft: 8 }}>{catNote}</span>
+      {/* HIDDEN — supervisor meeting 2026-05-23:
+          Averaging per-metric scores across all variables is misleading: a few
+          well-performing variables can cancel out poorly-performing ones, giving
+          a false sense of overall quality. The supervisor explicitly requested
+          removing this section — "No scores, no status." Readers should interpret
+          the raw per-variable results themselves rather than relying on a
+          potentially deceptive aggregate. The underlying metricSummaries data is
+          still computed by the backend and kept for SavedComparisons history. */}
+      {false && (
+        <PageSection
+          title="Indicative Similarity Summary"
+          description="These scores are statistical estimates only. They do not guarantee clinical equivalence or suitability for any specific use case."
+        >
+          {(["numerical", "categorical", "relationship"] as const).map((cat) => {
+            const rows = summary.metricSummaries.filter((m) => m.category === cat);
+            if (rows.length === 0) return null;
+            const catLabel = cat === "numerical" ? "Numerical Similarity" : cat === "categorical" ? "Categorical Similarity" : "Relationship Similarity";
+            const catNote = "Average score per metric across applicable variables";
+            return (
+              <div key={cat} style={{ marginTop: 20 }}>
+                <div style={{ marginBottom: 8 }}>
+                  <span style={{ fontWeight: 600, fontSize: 13, color: "#1e293b" }}>{catLabel}</span>
+                  <span style={{ fontSize: 12, color: "#94a3b8", marginLeft: 8 }}>{catNote}</span>
+                </div>
+                <div className="summary-grid">
+                  {rows.map((row) => {
+                    const tone = scoreTone(row.averageScore);
+                    const badgeLabel = row.averageScore >= 0.85 ? "Good" : row.averageScore >= 0.70 ? "Review" : "Poor";
+                    return (
+                      <SummaryCard
+                        key={row.metric}
+                        label={metricLabel(row.metric)}
+                        value={row.averageScore.toFixed(3)}
+                        badge={badgeLabel}
+                        tone={tone}
+                        helper={`${row.variableCount} variable${row.variableCount !== 1 ? "s" : ""}`}
+                        tooltip={metricExplanation(row.metric)}
+                      />
+                    );
+                  })}
+                </div>
               </div>
-              <div className="summary-grid">
-                {rows.map((row) => {
-                  const tone = scoreTone(row.averageScore);
-                  const badgeLabel = row.averageScore >= 0.85 ? "Good" : row.averageScore >= 0.70 ? "Review" : "Poor";
-                  return (
-                    <SummaryCard
-                      key={row.metric}
-                      label={metricLabel(row.metric)}
-                      value={row.averageScore.toFixed(3)}
-                      badge={badgeLabel}
-                      tone={tone}
-                      helper={`${row.variableCount} variable${row.variableCount !== 1 ? "s" : ""}`}
-                      tooltip={metricExplanation(row.metric)}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-
-      </PageSection>
+            );
+          })}
+        </PageSection>
+      )}
 
       {/* Dataset and config context */}
       <SectionCard title="Analysis context" subtitle="Dataset pair and evaluation configuration for this run.">
@@ -301,7 +319,7 @@ export default function RunDetailPage({
       {/* Metric matrix — summarises all variable × metric scores at a glance */}
       <SectionCard
         title="Metric Matrix"
-        subtitle="Normalised similarity score for every variable × metric pair. Grey = metric does not apply."
+        subtitle="Metric value for every variable × metric pair. Grey = metric does not apply."
       >
         <MetricHeatmap matrix={metricMatrix} />
       </SectionCard>
@@ -314,115 +332,123 @@ export default function RunDetailPage({
         <span className="results-section-hint">Cross-variable analysis — how well relationships between variables are preserved</span>
       </div>
 
-      {/* Numerical–Numerical */}
-      {mv?.topCorrelationPairs?.length ? (
+      {/* Numerical–Numerical — condition changed to matrix check so the heatmap
+          still shows even though the top-pairs table is now hidden. */}
+      {mv?.realCorrelationMatrix && mv?.synCorrelationMatrix ? (
         <PageSection title="Numerical–Numerical Correlation">
 
-          <SectionCard
-            title="Top Changed Pairs"
-            subtitle="Pearson r — top pairs by largest difference shown first."
-          >
-            <table className="data-table" style={{ tableLayout: "fixed" }}>
-              <colgroup>
-                <col style={{ width: "50%" }} />
-                <col style={{ width: "15%" }} />
-                <col style={{ width: "20%" }} />
-                <col style={{ width: "15%" }} />
-              </colgroup>
-              <thead>
-                <tr>
-                  <th>Variable pair</th>
-                  <th>Real r</th>
-                  <th>Synthetic r</th>
-                  <th>Difference</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mv.topCorrelationPairs.map((p) => (
-                  <tr key={`${p.variable1}-${p.variable2}`}>
-                    <td>{getVariableDisplayName(p.variable1)} × {getVariableDisplayName(p.variable2)}</td>
-                    <td>{p.realCorrelation.toFixed(3)}</td>
-                    <td>{p.syntheticCorrelation.toFixed(3)}</td>
-                    <td>
-                      <StatusBadge tone={p.difference <= 0.05 ? "success" : p.difference <= 0.10 ? "warning" : "danger"}>
-                        {p.difference.toFixed(3)}
-                      </StatusBadge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </SectionCard>
-
-          {mv.realCorrelationMatrix && mv.synCorrelationMatrix && (
+          {/* HIDDEN — supervisor meeting 2026-05-23: Top pairs table removed.
+              The three-panel heatmap already shows all pairwise Pearson r values.
+              "The heat map is enough actually." Backend still computes the data. */}
+          {false && mv.topCorrelationPairs?.length && (
             <SectionCard
-              title="Correlation Similarity Heatmap"
-              subtitle="Each cell = 1 − |real Pearson r − synthetic Pearson r|. 1 = identical, lower = more different (min −1). Hover for exact values."
+              title="Top Changed Pairs"
+              subtitle="Pearson r — top pairs by largest difference shown first."
             >
-              <CorrelationHeatmap
-                variables={Object.keys(mv.realCorrelationMatrix)}
-                realMatrix={mv.realCorrelationMatrix}
-                synMatrix={mv.synCorrelationMatrix}
-                note={mv.corrHeatmapNote}
-              />
+              <table className="data-table" style={{ tableLayout: "fixed" }}>
+                <colgroup>
+                  <col style={{ width: "50%" }} />
+                  <col style={{ width: "15%" }} />
+                  <col style={{ width: "20%" }} />
+                  <col style={{ width: "15%" }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Variable pair</th>
+                    <th>Real r</th>
+                    <th>Synthetic r</th>
+                    <th>Difference</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mv.topCorrelationPairs.map((p) => (
+                    <tr key={`${p.variable1}-${p.variable2}`}>
+                      <td>{getVariableDisplayName(p.variable1)} × {getVariableDisplayName(p.variable2)}</td>
+                      <td>{p.realCorrelation.toFixed(3)}</td>
+                      <td>{p.syntheticCorrelation.toFixed(3)}</td>
+                      <td>
+                        <StatusBadge tone={p.difference <= 0.05 ? "success" : p.difference <= 0.10 ? "warning" : "danger"}>
+                          {p.difference.toFixed(3)}
+                        </StatusBadge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </SectionCard>
           )}
+
+          <SectionCard
+            title="Correlation Heatmap"
+            subtitle="Three panels: Real Pearson r, Synthetic Pearson r, and absolute difference |Δr|. Hover any cell for exact values."
+          >
+            <CorrelationHeatmap
+              variables={Object.keys(mv.realCorrelationMatrix)}
+              realMatrix={mv.realCorrelationMatrix}
+              synMatrix={mv.synCorrelationMatrix}
+              note={mv.corrHeatmapNote}
+            />
+          </SectionCard>
         </PageSection>
       ) : null}
 
-      {/* Categorical–Categorical */}
-      {mv?.topCramersVPairs?.length ? (
+      {/* Categorical–Categorical — condition changed to matrix check so the heatmap
+          still shows even though the top-pairs table is now hidden. */}
+      {mv?.realCramersVMatrix && mv?.synCramersVMatrix ? (
         <PageSection title="Categorical–Categorical Association">
 
-          <SectionCard
-            title="Top Changed Pairs"
-            subtitle="Cramér's V — top pairs by largest difference shown first."
-          >
-            <table className="data-table" style={{ tableLayout: "fixed" }}>
-              <colgroup>
-                <col style={{ width: "50%" }} />
-                <col style={{ width: "15%" }} />
-                <col style={{ width: "20%" }} />
-                <col style={{ width: "15%" }} />
-              </colgroup>
-              <thead>
-                <tr>
-                  <th>Variable pair</th>
-                  <th>Real V</th>
-                  <th>Synthetic V</th>
-                  <th>Difference</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mv.topCramersVPairs.map((p) => (
-                  <tr key={`${p.variable1}-${p.variable2}`}>
-                    <td>{getVariableDisplayName(p.variable1)} × {getVariableDisplayName(p.variable2)}</td>
-                    <td>{p.realCramersV.toFixed(3)}</td>
-                    <td>{p.syntheticCramersV.toFixed(3)}</td>
-                    <td>
-                      <StatusBadge tone={p.difference <= 0.05 ? "success" : p.difference <= 0.10 ? "warning" : "danger"}>
-                        {p.difference.toFixed(3)}
-                      </StatusBadge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </SectionCard>
-
-          {mv.realCramersVMatrix && mv.synCramersVMatrix && (
+          {/* HIDDEN — supervisor meeting 2026-05-23: Top pairs table removed.
+              The three-panel heatmap already shows all pairwise Cramér's V values.
+              "The heat map is enough actually." Backend still computes the data. */}
+          {false && mv.topCramersVPairs?.length && (
             <SectionCard
-              title="Cramér's V Similarity Heatmap"
-              subtitle="Each cell = 1 − |real Cramér's V − synthetic Cramér's V|. 1 = identical, 0 = completely different. Hover for exact values."
+              title="Top Changed Pairs"
+              subtitle="Cramér's V — top pairs by largest difference shown first."
             >
-              <CramersVHeatmap
-                variables={Object.keys(mv.realCramersVMatrix)}
-                realMatrix={mv.realCramersVMatrix}
-                synMatrix={mv.synCramersVMatrix}
-                note={mv.cramersVHeatmapNote}
-              />
+              <table className="data-table" style={{ tableLayout: "fixed" }}>
+                <colgroup>
+                  <col style={{ width: "50%" }} />
+                  <col style={{ width: "15%" }} />
+                  <col style={{ width: "20%" }} />
+                  <col style={{ width: "15%" }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Variable pair</th>
+                    <th>Real V</th>
+                    <th>Synthetic V</th>
+                    <th>Difference</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mv.topCramersVPairs.map((p) => (
+                    <tr key={`${p.variable1}-${p.variable2}`}>
+                      <td>{getVariableDisplayName(p.variable1)} × {getVariableDisplayName(p.variable2)}</td>
+                      <td>{p.realCramersV.toFixed(3)}</td>
+                      <td>{p.syntheticCramersV.toFixed(3)}</td>
+                      <td>
+                        <StatusBadge tone={p.difference <= 0.05 ? "success" : p.difference <= 0.10 ? "warning" : "danger"}>
+                          {p.difference.toFixed(3)}
+                        </StatusBadge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </SectionCard>
           )}
+
+          <SectionCard
+            title="Cramér's V Heatmap"
+            subtitle="Three panels: Real Cramér's V, Synthetic Cramér's V, and absolute difference |ΔV|. Hover any cell for exact values."
+          >
+            <CramersVHeatmap
+              variables={Object.keys(mv.realCramersVMatrix)}
+              realMatrix={mv.realCramersVMatrix}
+              synMatrix={mv.synCramersVMatrix}
+              note={mv.cramersVHeatmapNote}
+            />
+          </SectionCard>
         </PageSection>
       ) : null}
 
@@ -467,7 +493,8 @@ export default function RunDetailPage({
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* SECTION 4 — KEY INSIGHTS                                              */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      {insights?.length ? (
+      {/* Key insights section — hidden per supervisor instruction: no auto-generated suggestions shown in the report */}
+      {false && insights?.length ? (
         <SectionCard
           title="Key Insights"
           subtitle="Auto-generated observations from this evaluation run."

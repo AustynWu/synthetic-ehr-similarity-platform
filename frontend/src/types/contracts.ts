@@ -274,6 +274,7 @@ export interface MetricMatrixCell {
   variable: string;
   metric: EvaluationMetric;
   normalizedScore: number; // 0-1
+  rawValue?: number | null; // original metric value; null/absent for records saved before this field was added
 }
 
 // Full variable × metric matrix, used to render the heatmap

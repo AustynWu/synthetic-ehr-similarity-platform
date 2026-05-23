@@ -287,8 +287,8 @@ export default function ValidationPage({ validationSummary, goToPage }: SharedPa
         />
       </SectionCard>
 
-      {/* Validation findings — moved below the table so warnings are easy to spot */}
-      <InfoAlert title="Validation findings" items={validationSummary.issues} />
+      {/* Validation findings — hidden per supervisor instruction: no suggestions or warnings shown to user in the report */}
+      {false && <InfoAlert title="Validation findings" items={validationSummary.issues} />}
 
       {/* Page footer actions */}
       <div className="page-actions">

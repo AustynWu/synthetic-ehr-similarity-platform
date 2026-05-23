@@ -41,7 +41,13 @@ function CustomTooltip({ active, payload, label }: TooltipProps<number, string>)
   );
 }
 
-export default function ComparisonChart({ points }: { points: ChartPoint[] }) {
+export default function ComparisonChart({
+  points,
+  yAxisLabel,
+}: {
+  points: ChartPoint[];
+  yAxisLabel?: string;
+}) {
   const data = points.map((p) => ({
     label:          p.label,
     Real:           p.realValue,
@@ -56,7 +62,7 @@ export default function ComparisonChart({ points }: { points: ChartPoint[] }) {
         data={data}
         barCategoryGap="30%"
         barGap={4}
-        margin={{ top: 8, right: 24, bottom: 4, left: 0 }}
+        margin={{ top: 32, right: 24, bottom: 4, left: 0 }}
       >
         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
 
@@ -72,14 +78,22 @@ export default function ComparisonChart({ points }: { points: ChartPoint[] }) {
         <YAxis
           tickFormatter={(v: number) => `${(v * 100).toFixed(0)}%`}
           tick={{ fontSize: 11 }}
-          width={42}
+          width={yAxisLabel ? 58 : 42}
+          label={yAxisLabel ? {
+            value: yAxisLabel,
+            angle: -90,
+            position: "insideLeft",
+            offset: 12,
+            style: { fontSize: 11, fill: "#64748b" },
+          } : undefined}
         />
 
         <Tooltip content={<CustomTooltip />} />
 
         <Legend
+          verticalAlign="top"
           iconType="square"
-          wrapperStyle={{ fontSize: 12, paddingTop: 4 }}
+          wrapperStyle={{ fontSize: 12, paddingBottom: 4 }}
         />
 
         <Bar dataKey="Real"      fill={REAL_COLOR}      fillOpacity={0.85} radius={[3, 3, 0, 0]} isAnimationActive={false} />

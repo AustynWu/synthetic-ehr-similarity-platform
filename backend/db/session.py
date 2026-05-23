@@ -59,10 +59,10 @@ else:
 
 
 def get_db():
-    """FastAPI dependency: yields a database session and closes it when done.
-
-    Only call this when DB_AVAILABLE is True — comparisons.py checks that first.
-    """
+    """FastAPI dependency: yields a database session, or None when DB is not configured."""
+    if not DB_AVAILABLE or SessionLocal is None:
+        yield None
+        return
     db = SessionLocal()
     try:
         yield db

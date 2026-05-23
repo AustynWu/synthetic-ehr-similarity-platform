@@ -24,7 +24,7 @@ const PLOTLY_CONFIG = {
 const BASE_LAYOUT = {
   paper_bgcolor: "transparent",
   plot_bgcolor:  "transparent",
-  margin: { t: 30, r: 20, b: 40, l: 55 },
+  // Margins are set per chart instance below (depend on whether axis labels are present).
   legend: {
     orientation: "h" as const,
     x: 0,
@@ -45,7 +45,15 @@ interface TooltipState {
   y: number;
 }
 
-export default function DistributionChart({ points }: { points: ChartPoint[] }) {
+export default function DistributionChart({
+  points,
+  xAxisLabel,
+  yAxisLabel,
+}: {
+  points: ChartPoint[];
+  xAxisLabel?: string;
+  yAxisLabel?: string;
+}) {
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
 
   const isHistogram = points.length > 0 && points[0].binLeft != null;
@@ -113,6 +121,7 @@ export default function DistributionChart({ points }: { points: ChartPoint[] }) 
           ]}
           layout={{
             ...BASE_LAYOUT,
+            margin: { t: 30, r: 20, b: xAxisLabel ? 55 : 40, l: yAxisLabel ? 65 : 55 },
             barmode: "overlay",
             bargap: 0,
             xaxis: {
@@ -120,10 +129,12 @@ export default function DistributionChart({ points }: { points: ChartPoint[] }) 
               ticktext,
               range: [leftEdge, rightEdge],
               showspikes: false,
+              title: xAxisLabel ? { text: xAxisLabel, font: { size: 11 }, standoff: 6 } : undefined,
             },
             yaxis: {
               tickformat: ".0%",
               showspikes: false,
+              title: yAxisLabel ? { text: yAxisLabel, font: { size: 11 }, standoff: 6 } : undefined,
             },
           }}
           config={PLOTLY_CONFIG}
@@ -200,13 +211,16 @@ export default function DistributionChart({ points }: { points: ChartPoint[] }) 
       ]}
       layout={{
         ...BASE_LAYOUT,
+        margin: { t: 30, r: 20, b: xAxisLabel ? 55 : 40, l: yAxisLabel ? 65 : 55 },
         barmode: "group",
         xaxis: {
           type: "category",
           tickangle: points.length > 7 ? -35 : 0,
+          title: xAxisLabel ? { text: xAxisLabel, font: { size: 11 }, standoff: 6 } : undefined,
         },
         yaxis: {
           tickformat: ".0%",
+          title: yAxisLabel ? { text: yAxisLabel, font: { size: 11 }, standoff: 6 } : undefined,
         },
       }}
       config={PLOTLY_CONFIG}

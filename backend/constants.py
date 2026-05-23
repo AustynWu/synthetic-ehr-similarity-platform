@@ -38,11 +38,15 @@ KNOWN_ID_COLS: set[str] = {
 # 50 is a conservative ceiling; columns with more unique values are silently skipped.
 CHI_SQUARE_MAX_CATEGORIES = 50
 
-# Limits how many pairs are returned in each multivariate section (correlation, Cramér's V,
-# group-wise). Returning all pairs for datasets with many columns would flood the UI and
-# slow down the JSON response. The top-K are sorted by largest difference first so the most
-# problematic pairs always surface.
+# Limits how many pairs are returned for correlation and Cramér's V sections.
+# These tables are currently hidden in the UI (supervisor meeting 2026-05-23)
+# but the data is still computed in case they are re-enabled later.
 MULTIVARIATE_TOP_K = 5
+
+# Limits how many rows are shown in the Mixed Analysis group-wise summary table.
+# Supervisor meeting 2026-05-23: increased to 15 because 5 rows was too few to
+# show the full picture when there are many numerical × categorical group combinations.
+GROUPWISE_TOP_K = 15
 
 # Maximum number of categorical variables included in the Cramér's V heatmap.
 # Variables are chosen by "activity score" (how often they appear in high-difference

@@ -1,16 +1,14 @@
 // ========================================================
-// MetricHeatmap.tsx — variable × metric score heatmap
+// MetricHeatmap.tsx — variable × metric raw value table
 // ========================================================
 // Renders a grid where:
 //   rows    = variables (from metricMatrix.variables)
 //   columns = metrics  (from metricMatrix.metrics)
-//   cell    = normalizedScore (0-1), coloured green / yellow / red
+//   cell    = rawValue (original metric value, not normalised)
 //   empty   = metric does not apply to this variable type
 //
-// The cells array is sparse: only applicable (variable, metric)
-// pairs exist. Missing cells render as a grey "—" placeholder.
-//
-// Short metric labels are used to keep columns narrow.
+// correlation_difference is hidden per supervisor instruction:
+// it is a cross-variable metric and does not belong in per-variable table.
 // ========================================================
 
 import type { MetricMatrix } from "../../types/contracts";
@@ -28,18 +26,16 @@ const SHORT_LABELS: Record<string, string> = {
   cramers_v_comparison:              "Cramér's V",
 };
 
-// Thresholds match Task 6: ≥0.85 Good, 0.70–0.84 Review, <0.70 Poor
-function cellStyle(score: number): { background: string; color: string } {
-  if (score >= 0.85) return { background: "var(--success-soft)", color: "var(--success)" };
-  if (score >= 0.70) return { background: "var(--warning-soft)", color: "var(--warning)" };
-  return { background: "var(--danger-soft)", color: "var(--danger)" };
-}
+// Correlation is a cross-variable metric — hidden per supervisor instruction
+const HIDDEN_METRICS = new Set(["correlation_difference"]);
 
 export default function MetricHeatmap({ matrix }: { matrix: MetricMatrix }) {
-  // Build a fast lookup: "variable__metric" → normalizedScore
+  // Build a fast lookup: "variable__metric" → rawValue (null/undefined for old records → shows "—")
   const lookup = new Map(
-    matrix.cells.map((c) => [`${c.variable}__${c.metric}`, c.normalizedScore])
+    matrix.cells.map((c) => [`${c.variable}__${c.metric}`, c.rawValue ?? null])
   );
+
+  const visibleMetrics = matrix.metrics.filter((m) => !HIDDEN_METRICS.has(m));
 
   return (
     <div className="heatmap-scroll-wrapper">
@@ -47,7 +43,7 @@ export default function MetricHeatmap({ matrix }: { matrix: MetricMatrix }) {
         <thead>
           <tr>
             <th className="heatmap-corner" />
-            {matrix.metrics.map((metric) => (
+            {visibleMetrics.map((metric) => (
               <th key={metric} className="heatmap-col-header" title={metric}>
                 {SHORT_LABELS[metric] ?? metric}
               </th>
@@ -61,20 +57,18 @@ export default function MetricHeatmap({ matrix }: { matrix: MetricMatrix }) {
               <td className="heatmap-row-header" title={variable}>
                 {getVariableDisplayName(variable)}
               </td>
-              {matrix.metrics.map((metric) => {
-                const score = lookup.get(`${variable}__${metric}`);
-                if (score === undefined) {
+              {visibleMetrics.map((metric) => {
+                const raw = lookup.get(`${variable}__${metric}`);
+                if (raw == null) {
                   return <td key={metric} className="heatmap-cell na">—</td>;
                 }
-                const { background, color } = cellStyle(score);
                 return (
                   <td
                     key={metric}
                     className="heatmap-cell"
-                    style={{ background, color }}
-                    title={`${getVariableDisplayName(variable)} × ${SHORT_LABELS[metric] ?? metric}: ${score.toFixed(3)}`}
+                    title={`${getVariableDisplayName(variable)} × ${SHORT_LABELS[metric] ?? metric}: ${raw.toFixed(4)}`}
                   >
-                    {score.toFixed(3)}
+                    {raw.toFixed(4)}
                   </td>
                 );
               })}

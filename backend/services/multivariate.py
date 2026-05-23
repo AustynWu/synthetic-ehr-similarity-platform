@@ -17,7 +17,7 @@ from schemas import (
     EvaluationMetric, MultivariateResults,
     CorrelationPair, CramersVPair, GroupwiseSummaryRow,
 )
-from constants import MULTIVARIATE_TOP_K, MAX_CRAMERS_HEATMAP_VARS, MAX_CORR_HEATMAP_VARS
+from constants import MULTIVARIATE_TOP_K, GROUPWISE_TOP_K, MAX_CRAMERS_HEATMAP_VARS, MAX_CORR_HEATMAP_VARS
 
 
 def _select_active_corr_vars(
@@ -320,7 +320,7 @@ def compute_multivariate_results(
     return MultivariateResults(
         topCorrelationPairs=corr_pairs[:MULTIVARIATE_TOP_K],
         topCramersVPairs=cramers_pairs[:MULTIVARIATE_TOP_K],
-        topGroupwiseRows=groupwise[:MULTIVARIATE_TOP_K],
+        topGroupwiseRows=groupwise[:GROUPWISE_TOP_K],
         realCorrelationMatrix=real_corr_matrix,
         synCorrelationMatrix=syn_corr_matrix,
         corrHeatmapNote=corr_heatmap_note if corr_pairs else None,

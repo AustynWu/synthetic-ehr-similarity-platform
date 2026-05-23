@@ -178,6 +178,7 @@ class MetricMatrixCell(BaseModel):
     variable: str
     metric: EvaluationMetric
     normalizedScore: float             # 0-1
+    rawValue: Optional[float] = None  # original metric value; None for records saved before this field was added
 
 class MetricMatrix(BaseModel):
     variables: list[str]

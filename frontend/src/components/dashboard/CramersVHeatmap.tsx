@@ -1,43 +1,52 @@
-// CramersVHeatmap.tsx — correlation similarity heatmap for Categorical–Categorical Cramér's V
+// CramersVHeatmap.tsx — three-panel Cramér's V association heatmap
 //
-// Each cell shows 1 − |real Cramér's V − synthetic Cramér's V|, i.e. how similar
-// the two datasets' categorical association is for that variable pair.
-// 1.00 = identical association (diagonal is always 1), 0.00 = completely different (guaranteed range 0–1).
-// White = low similarity, dark blue = high similarity.
-// Hover over any cell for exact real V, synthetic V, and |ΔV| values.
+// Changed in supervisor meeting 2026-05-23 from a single similarity-score
+// heatmap (1 − |ΔV|) to three separate panels so readers can directly compare
+// the real and synthetic categorical association structures side by side.
 //
-// Variables shown are pre-selected by the backend using an activity score:
-// only the variables that appear most often in high-difference pairs are included.
-// The `note` prop contains a plain-English explanation from the backend.
+// Panel 1 (Real):       actual Cramér's V values from the real dataset (0–1).
+// Panel 2 (Synthetic):  actual Cramér's V values from the synthetic dataset (0–1).
+// Panel 3 (Difference): |real_V − synthetic_V|, 0 = identical, higher = more divergent.
+//
+// Color scales:
+//   Real / Synthetic: sequential — white(0) → blue(1), 0 = no association, 1 = strong
+//   Difference:       sequential — white(0) → orange-red(1), higher = bigger gap
 
 import { useState } from "react";
 
-// Linear interpolation: white (sim = 0) → blue-600 (sim = 1).
-// Matches the same colour scale used in CorrelationHeatmap for visual consistency.
-function simColor(sim: number): string {
-  const s = Math.min(Math.max(sim, 0), 1);
-  const r = Math.round(255 - 218 * s); // 255 → 37
-  const g = Math.round(255 - 156 * s); // 255 → 99
-  const b = Math.round(255 - 20  * s); // 255 → 235
-  return `rgb(${r},${g},${b})`;
+// Sequential color for Cramér's V (0–1): white → blue-600.
+function cramersColor(v: number): string {
+  const t = Math.min(Math.max(v, 0), 1);
+  return `rgb(${Math.round(255 - 218 * t)},${Math.round(255 - 156 * t)},${Math.round(255 - 20 * t)})`;
 }
 
-// Truncate long variable names so they fit in the column headers.
+// Sequential color for absolute difference (0–1): white → orange-red.
+function diffColor(d: number): string {
+  const t = Math.min(Math.max(d, 0), 1);
+  return `rgb(255,${Math.round(255 - 200 * t)},${Math.round(255 - 240 * t)})`;
+}
+
 function shortName(v: string): string {
   return v.length > 14 ? v.slice(0, 12) + "…" : v;
+}
+
+// Look up a value from either direction because the matrix is symmetric.
+function lookup(
+  matrix: Record<string, Record<string, number>>,
+  row: string,
+  col: string,
+): number | null {
+  return matrix[row]?.[col] ?? matrix[col]?.[row] ?? null;
 }
 
 interface Props {
   variables: string[];
   realMatrix: Record<string, Record<string, number>>;
   synMatrix:  Record<string, Record<string, number>>;
-  // Plain-English explanation from the backend about which variables were
-  // selected for this heatmap and why (e.g. activity-score logic).
   note?: string;
 }
 
 export default function CramersVHeatmap({ variables, realMatrix, synMatrix, note }: Props) {
-  // Tooltip state — position follows the mouse so it never obscures the hovered cell.
   const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
 
   if (variables.length < 2) {
@@ -48,127 +57,112 @@ export default function CramersVHeatmap({ variables, realMatrix, synMatrix, note
     );
   }
 
+  // Shared column header row — reused by all three panels.
+  const headerRow = (
+    <thead>
+      <tr>
+        <th style={{ minWidth: 120 }} />
+        {variables.map((v) => (
+          <th
+            key={v}
+            title={v}
+            style={{
+              padding: "2px 4px",
+              writingMode: "vertical-rl",
+              transform: "rotate(180deg)",
+              height: 95,
+              width: 40,
+              fontWeight: 500,
+              fontSize: 12,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              verticalAlign: "bottom",
+            }}
+          >
+            {shortName(v)}
+          </th>
+        ))}
+      </tr>
+    </thead>
+  );
+
+  const rowLabelStyle = {
+    padding: "2px 10px",
+    textAlign: "right" as const,
+    fontWeight: 500,
+    fontSize: 12,
+    whiteSpace: "nowrap" as const,
+    maxWidth: 120,
+    overflow: "hidden" as const,
+    textOverflow: "ellipsis" as const,
+  };
+
+  const cellBase = {
+    width: 40,
+    height: 32,
+    border: "1px solid #e2e8f0",
+    textAlign: "center" as const,
+    fontSize: 11,
+    cursor: "default" as const,
+  };
+
+  const naCell = {
+    ...cellBase,
+    background: "#f8fafc",
+    color: "#94a3b8",
+    fontSize: 10,
+  };
+
+  const panelTitle = (label: string) => (
+    <p style={{ fontWeight: 600, fontSize: 13, color: "#1e293b", margin: "16px 0 4px" }}>
+      {label}
+    </p>
+  );
+
   return (
     <div>
-      {/* Variable-selection explanation from the backend */}
       {note && (
         <p style={{
-          color: "#475569",
-          fontSize: 12,
-          marginBottom: 12,
-          padding: "8px 12px",
-          background: "#f8fafc",
+          color: "#475569", fontSize: 12, marginBottom: 12,
+          padding: "8px 12px", background: "#f8fafc",
           borderLeft: "3px solid #94a3b8",
-          borderRadius: "0 4px 4px 0",
-          lineHeight: 1.6,
+          borderRadius: "0 4px 4px 0", lineHeight: 1.6,
         }}>
           {note}
         </p>
       )}
 
-      <div className="diff-heatmap-wrapper" style={{ overflowX: "auto", display: "flex", justifyContent: "center" }}>
+      {/* ── Panel 1: Real Cramér's V ─────────────────────────────────────────── */}
+      {panelTitle("Real — Cramér's V")}
+      <div style={{ overflowX: "auto", display: "flex", justifyContent: "center" }}>
         <table style={{ borderCollapse: "collapse", fontSize: 12 }}>
-          <thead>
-            <tr>
-              {/* Top-left corner — empty spacer cell */}
-              <th style={{ minWidth: 120 }} />
-              {variables.map((v) => (
-                <th
-                  key={v}
-                  title={v}
-                  style={{
-                    padding: "2px 4px",
-                    writingMode: "vertical-rl",
-                    transform: "rotate(180deg)",
-                    height: 95,
-                    width: 40,
-                    fontWeight: 500,
-                    fontSize: 12,
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    verticalAlign: "bottom",
-                  }}
-                >
-                  {shortName(v)}
-                </th>
-              ))}
-            </tr>
-          </thead>
+          {headerRow}
           <tbody>
             {variables.map((rowVar) => (
               <tr key={rowVar}>
-                {/* Row label */}
-                <td
-                  title={rowVar}
-                  style={{
-                    padding: "2px 10px",
-                    textAlign: "right",
-                    fontWeight: 500,
-                    fontSize: 12,
-                    whiteSpace: "nowrap",
-                    maxWidth: 120,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                >
-                  {shortName(rowVar)}
-                </td>
-
+                <td title={rowVar} style={rowLabelStyle}>{shortName(rowVar)}</td>
                 {variables.map((colVar) => {
-                  // Look up value in both directions — the matrix is symmetric so
-                  // either lookup should succeed for off-diagonal cells.
-                  const realV = realMatrix[rowVar]?.[colVar] ?? realMatrix[colVar]?.[rowVar] ?? null;
-                  const synV  = synMatrix[rowVar]?.[colVar]  ?? synMatrix[colVar]?.[rowVar]  ?? null;
-
-                  // Cells with no data (variables that didn't form a valid pair)
-                  // are shown as a neutral grey to distinguish them from 0-difference cells.
-                  if (realV === null || synV === null) {
-                    return (
-                      <td
-                        key={colVar}
-                        style={{
-                          background: "#f8fafc",
-                          width: 40,
-                          height: 32,
-                          border: "1px solid #e2e8f0",
-                          textAlign: "center",
-                          fontSize: 10,
-                          color: "#94a3b8",
-                        }}
-                      >
-                        N/A
-                      </td>
-                    );
-                  }
-
-                  const diff = Math.abs(realV - synV);
-                  const sim  = 1 - diff;
-
+                  const v    = lookup(realMatrix, rowVar, colVar);
+                  const synV = lookup(synMatrix,  rowVar, colVar);
+                  if (v === null) return <td key={colVar} style={naCell}>N/A</td>;
+                  const diff = synV !== null ? Math.abs(v - synV) : null;
                   return (
                     <td
                       key={colVar}
-                      onMouseEnter={(e) =>
-                        setTooltip({
-                          text: `${rowVar} × ${colVar}\nReal V:     ${realV.toFixed(3)}\nSyn V:      ${synV.toFixed(3)}\n|ΔV|:       ${diff.toFixed(3)}\nSimilarity: ${sim.toFixed(3)}`,
-                          x: e.clientX,
-                          y: e.clientY,
-                        })
-                      }
+                      style={{ ...cellBase, background: cramersColor(v), color: v > 0.5 ? "#fff" : "#374151" }}
+                      onMouseEnter={(e) => setTooltip({
+                        text: [
+                          `${rowVar} × ${colVar}`,
+                          `Real V:      ${v.toFixed(3)}`,
+                          `Synthetic V: ${synV !== null ? synV.toFixed(3) : "N/A"}`,
+                          diff !== null ? `|ΔV|:        ${diff.toFixed(3)}` : "",
+                        ].filter(Boolean).join("\n"),
+                        x: e.clientX, y: e.clientY,
+                      })}
                       onMouseLeave={() => setTooltip(null)}
-                      style={{
-                        background: simColor(sim),
-                        width: 40,
-                        height: 32,
-                        border: "1px solid #e2e8f0",
-                        textAlign: "center",
-                        fontSize: 11,
-                        cursor: "default",
-                        color: sim > 0.5 ? "#fff" : "#374151",
-                        fontWeight: sim < 0.8 ? 600 : 400,
-                      }}
                     >
-                      {sim.toFixed(3)}
+                      {v.toFixed(2)}
                     </td>
                   );
                 })}
@@ -177,38 +171,94 @@ export default function CramersVHeatmap({ variables, realMatrix, synMatrix, note
           </tbody>
         </table>
       </div>
+      <Legend type="cramers" />
 
-      {/* Color scale legend */}
-      <div style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "flex-end",
-        gap: 8,
-        marginTop: 10,
-        fontSize: 11,
-        color: "#64748b",
-      }}>
-        <span>Similarity:</span>
-        <span>Low</span>
-        <div style={{
-          width: 80,
-          height: 10,
-          background: "linear-gradient(to right, white, rgb(37,99,235))",
-          border: "1px solid #e2e8f0",
-          borderRadius: 2,
-        }} />
-        <span>High</span>
-        <span style={{ marginLeft: 12, fontStyle: "italic" }}>
-          Each cell = 1 − |real Cramér's V − synthetic Cramér's V| &nbsp;(1 = identical, diagonal = 1)
-        </span>
+      {/* ── Panel 2: Synthetic Cramér's V ───────────────────────────────────── */}
+      {panelTitle("Synthetic — Cramér's V")}
+      <div style={{ overflowX: "auto", display: "flex", justifyContent: "center" }}>
+        <table style={{ borderCollapse: "collapse", fontSize: 12 }}>
+          {headerRow}
+          <tbody>
+            {variables.map((rowVar) => (
+              <tr key={rowVar}>
+                <td title={rowVar} style={rowLabelStyle}>{shortName(rowVar)}</td>
+                {variables.map((colVar) => {
+                  const v     = lookup(synMatrix,  rowVar, colVar);
+                  const realV = lookup(realMatrix, rowVar, colVar);
+                  if (v === null) return <td key={colVar} style={naCell}>N/A</td>;
+                  const diff = realV !== null ? Math.abs(realV - v) : null;
+                  return (
+                    <td
+                      key={colVar}
+                      style={{ ...cellBase, background: cramersColor(v), color: v > 0.5 ? "#fff" : "#374151" }}
+                      onMouseEnter={(e) => setTooltip({
+                        text: [
+                          `${rowVar} × ${colVar}`,
+                          `Real V:      ${realV !== null ? realV.toFixed(3) : "N/A"}`,
+                          `Synthetic V: ${v.toFixed(3)}`,
+                          diff !== null ? `|ΔV|:        ${diff.toFixed(3)}` : "",
+                        ].filter(Boolean).join("\n"),
+                        x: e.clientX, y: e.clientY,
+                      })}
+                      onMouseLeave={() => setTooltip(null)}
+                    >
+                      {v.toFixed(2)}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
+      <Legend type="cramers" />
 
-      {/* Floating tooltip — follows the cursor, never blocks the hovered cell */}
+      {/* ── Panel 3: Absolute difference ────────────────────────────────────── */}
+      {panelTitle("Difference — |Real V − Synthetic V|")}
+      <div style={{ overflowX: "auto", display: "flex", justifyContent: "center" }}>
+        <table style={{ borderCollapse: "collapse", fontSize: 12 }}>
+          {headerRow}
+          <tbody>
+            {variables.map((rowVar) => (
+              <tr key={rowVar}>
+                <td title={rowVar} style={rowLabelStyle}>{shortName(rowVar)}</td>
+                {variables.map((colVar) => {
+                  const realV = lookup(realMatrix, rowVar, colVar);
+                  const synV  = lookup(synMatrix,  rowVar, colVar);
+                  if (realV === null || synV === null) return <td key={colVar} style={naCell}>N/A</td>;
+                  const diff = Math.abs(realV - synV);
+                  return (
+                    <td
+                      key={colVar}
+                      style={{ ...cellBase, background: diffColor(diff), color: diff > 0.5 ? "#fff" : "#374151", fontWeight: diff > 0.2 ? 600 : 400 }}
+                      onMouseEnter={(e) => setTooltip({
+                        text: [
+                          `${rowVar} × ${colVar}`,
+                          `Real V:      ${realV.toFixed(3)}`,
+                          `Synthetic V: ${synV.toFixed(3)}`,
+                          `|ΔV|:        ${diff.toFixed(3)}`,
+                        ].join("\n"),
+                        x: e.clientX, y: e.clientY,
+                      })}
+                      onMouseLeave={() => setTooltip(null)}
+                    >
+                      {diff.toFixed(2)}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <Legend type="diff" />
+
+      {/* Floating tooltip */}
       {tooltip && (
         <div style={{
           position: "fixed",
           left: tooltip.x + 14,
-          top: tooltip.y - 8,
+          top:  tooltip.y - 8,
           background: "#1e293b",
           color: "#f8fafc",
           padding: "6px 10px",
@@ -223,6 +273,28 @@ export default function CramersVHeatmap({ variables, realMatrix, synMatrix, note
           {tooltip.text}
         </div>
       )}
+    </div>
+  );
+}
+
+// Color legend displayed below each panel.
+function Legend({ type }: { type: "cramers" | "diff" }) {
+  if (type === "cramers") {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, marginTop: 6, marginBottom: 8, fontSize: 11, color: "#64748b" }}>
+        <span>Cramér's V:</span>
+        <span>0 (independent)</span>
+        <div style={{ width: 80, height: 10, background: "linear-gradient(to right, white, rgb(37,99,235))", border: "1px solid #e2e8f0", borderRadius: 2 }} />
+        <span>1 (strong)</span>
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, marginTop: 6, marginBottom: 8, fontSize: 11, color: "#64748b" }}>
+      <span>|ΔV|:</span>
+      <span>0 (identical)</span>
+      <div style={{ width: 80, height: 10, background: "linear-gradient(to right, white, rgb(255,55,15))", border: "1px solid #e2e8f0", borderRadius: 2 }} />
+      <span>Large gap</span>
     </div>
   );
 }

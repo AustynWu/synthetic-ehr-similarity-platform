@@ -54,7 +54,8 @@ export default function SavedComparisonsPage({
                   <th>Created</th>
                   <th>Real Dataset</th>
                   <th>Synthetic Dataset</th>
-                  <th>Overall Score</th>
+                  {/* Overall Score hidden — supervisor instruction: no scores, no status */}
+                  {false && <th>Overall Score</th>}
                   <th>Status</th>
                   <th></th>
                 </tr>
@@ -66,11 +67,14 @@ export default function SavedComparisonsPage({
                     <td>{run.createdAtLabel}</td>
                     <td>{run.realDatasetName}</td>
                     <td>{run.syntheticDatasetName}</td>
-                    <td>
-                      <StatusBadge tone={scoreTone(run.overallSimilarityScore)}>
-                        {run.overallSimilarityScore.toFixed(3)}
-                      </StatusBadge>
-                    </td>
+                    {/* Overall Score hidden — supervisor instruction: no scores, no status */}
+                    {false && (
+                      <td>
+                        <StatusBadge tone={scoreTone(run.overallSimilarityScore)}>
+                          {run.overallSimilarityScore.toFixed(3)}
+                        </StatusBadge>
+                      </td>
+                    )}
                     <td>
                       <StatusBadge tone={run.status === "completed" ? "success" : run.status === "failed" ? "danger" : "info"}>
                         {run.status}

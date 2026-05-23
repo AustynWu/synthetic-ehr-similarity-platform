@@ -146,44 +146,52 @@ export default function ResultsPage({
   return (
     <div className="page-stack">
 
-      {/* ── Section 1: Summary cards ───────────────────────────────────────── */}
-      <PageSection
-        title="Indicative Similarity Summary"
-        description="These scores are statistical estimates only. They do not guarantee clinical equivalence or suitability for any specific use case."
-      >
-        {/* Per-metric similarity — one SummaryCard per metric, grouped by category */}
-        {(["numerical", "categorical", "relationship"] as const).map((cat) => {
-          const rows = summary.metricSummaries.filter((m) => m.category === cat);
-          if (rows.length === 0) return null;
-          const catLabel = cat === "numerical" ? "Numerical Similarity" : cat === "categorical" ? "Categorical Similarity" : "Relationship Similarity";
-          const catNote = "Average score per metric across applicable variables";
-          return (
-            <div key={cat} style={{ marginTop: 20 }}>
-              <div style={{ marginBottom: 8 }}>
-                <span style={{ fontWeight: 600, fontSize: 13, color: "#1e293b" }}>{catLabel}</span>
-                <span style={{ fontSize: 12, color: "#94a3b8", marginLeft: 8 }}>{catNote}</span>
+      {/* ── Section 1: Summary cards (HIDDEN — supervisor meeting 2026-05-23) ──
+          Averaging per-metric scores across all variables is misleading: a few
+          well-performing variables can cancel out poorly-performing ones, giving
+          a false sense of overall quality. The supervisor explicitly requested
+          removing this section — "No scores, no status." Readers should interpret
+          the raw per-variable results themselves rather than relying on a
+          potentially deceptive aggregate. The underlying metricSummaries data is
+          still computed by the backend and kept for SavedComparisons history. */}
+      {false && (
+        <PageSection
+          title="Indicative Similarity Summary"
+          description="These scores are statistical estimates only. They do not guarantee clinical equivalence or suitability for any specific use case."
+        >
+          {(["numerical", "categorical", "relationship"] as const).map((cat) => {
+            const rows = summary.metricSummaries.filter((m) => m.category === cat);
+            if (rows.length === 0) return null;
+            const catLabel = cat === "numerical" ? "Numerical Similarity" : cat === "categorical" ? "Categorical Similarity" : "Relationship Similarity";
+            const catNote = "Average score per metric across applicable variables";
+            return (
+              <div key={cat} style={{ marginTop: 20 }}>
+                <div style={{ marginBottom: 8 }}>
+                  <span style={{ fontWeight: 600, fontSize: 13, color: "#1e293b" }}>{catLabel}</span>
+                  <span style={{ fontSize: 12, color: "#94a3b8", marginLeft: 8 }}>{catNote}</span>
+                </div>
+                <div className="summary-grid">
+                  {rows.map((row) => {
+                    const tone = scoreTone(row.averageScore);
+                    const badgeLabel = row.averageScore >= 0.85 ? "Good" : row.averageScore >= 0.70 ? "Review" : "Poor";
+                    return (
+                      <SummaryCard
+                        key={row.metric}
+                        label={metricLabel(row.metric)}
+                        value={row.averageScore.toFixed(3)}
+                        badge={badgeLabel}
+                        tone={tone}
+                        helper={`${row.variableCount} variable${row.variableCount !== 1 ? "s" : ""}`}
+                        tooltip={metricExplanation(row.metric)}
+                      />
+                    );
+                  })}
+                </div>
               </div>
-              <div className="summary-grid">
-                {rows.map((row) => {
-                  const tone = scoreTone(row.averageScore);
-                  const badgeLabel = row.averageScore >= 0.85 ? "Good" : row.averageScore >= 0.70 ? "Review" : "Poor";
-                  return (
-                    <SummaryCard
-                      key={row.metric}
-                      label={metricLabel(row.metric)}
-                      value={row.averageScore.toFixed(3)}
-                      badge={badgeLabel}
-                      tone={tone}
-                      helper={`${row.variableCount} variable${row.variableCount !== 1 ? "s" : ""}`}
-                      tooltip={metricExplanation(row.metric)}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </PageSection>
+            );
+          })}
+        </PageSection>
+      )}
 
       {/* ── Section 2: Analysis context ────────────────────────────────────── */}
       <SectionCard
@@ -246,18 +254,25 @@ export default function ResultsPage({
               <option value="numerical">Numerical only</option>
               <option value="categorical">Categorical only</option>
             </select>
-            <select
-              className="ranking-select"
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value as FilterStatus)}
-            >
-              <option value="all">All statuses</option>
-              <option value="good">Good</option>
-              <option value="moderate">Review</option>
-              <option value="poor">Poor</option>
-            </select>
+            {/* HIDDEN — supervisor meeting 2026-05-23: status filter removed because the
+                Status column is no longer displayed. Filtering by Good/Review/Poor would
+                confuse readers who cannot see which status each variable carries. */}
+            {false && (
+              <select
+                className="ranking-select"
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value as FilterStatus)}
+              >
+                <option value="all">All statuses</option>
+                <option value="good">Good</option>
+                <option value="moderate">Review</option>
+                <option value="poor">Poor</option>
+              </select>
+            )}
           </div>
-          <span className="ranking-sort-label">Sorted by similarity ↑ (lowest first)</span>
+          {/* Sort label updated: similarity column is hidden but sort order is preserved
+              so the most divergent variables still appear at the top of the list. */}
+          <span className="ranking-sort-label">Most divergent variables shown first</span>
         </div>
 
         {/* Table */}
@@ -267,45 +282,60 @@ export default function ResultsPage({
               <tr>
                 <th>Variable</th>
                 <th>Type</th>
-                <th>Similarity</th>
-                <th>Status</th>
+                {/* HIDDEN — supervisor meeting 2026-05-23: normalized similarity score
+                    removed. Averaging metric scores across all variables is misleading.
+                    "No scores, no status." Raw metric value shown instead. */}
+                {false && <th>Similarity</th>}
+                {/* HIDDEN — supervisor meeting 2026-05-23: Good/Review/Poor labels
+                    removed. Thresholds (0.85/0.70) were arbitrary and could not be
+                    justified. Readers interpret raw values themselves. */}
+                {false && <th>Status</th>}
                 <th>Weakest metric</th>
+                <th>Value</th>
               </tr>
             </thead>
             <tbody>
               {filteredRanking.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="table-empty-cell">No variables match the current filter.</td>
+                  <td colSpan={4} className="table-empty-cell">No variables match the current filter.</td>
                 </tr>
-              ) : filteredRanking.map((row) => (
-                <tr
-                  key={row.variable}
-                  className={`ranking-row clickable${activeVariable === row.variable ? " selected" : ""}`}
-                  onClick={() => setSelectedVariable(row.variable)}
-                  title={detailViews[row.variable] ? "Click to view distribution detail" : "No distribution chart available for this variable"}
-                >
-                  <td>
-                    <strong title={row.variable}>{getVariableDisplayName(row.variable)}</strong>
-                    {row.realMissingRate >= 50 && (
-                      <span className="status-badge warning missing-rate-badge">
-                        ⚠ {row.realMissingRate}% missing
-                      </span>
+              ) : filteredRanking.map((row) => {
+                // Look up the raw statistic for the weakest metric from detailViews
+                const weakestRaw = detailViews[row.variable]?.metrics
+                  .find((m) => m.name === row.topContributingMetric)?.value;
+                return (
+                  <tr
+                    key={row.variable}
+                    className={`ranking-row clickable${activeVariable === row.variable ? " selected" : ""}`}
+                    onClick={() => setSelectedVariable(row.variable)}
+                    title={detailViews[row.variable] ? "Click to view distribution detail" : "No distribution chart available for this variable"}
+                  >
+                    <td>
+                      <strong title={row.variable}>{getVariableDisplayName(row.variable)}</strong>
+                      {row.realMissingRate >= 50 && (
+                        <span className="status-badge warning missing-rate-badge">
+                          ⚠ {row.realMissingRate}% missing
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      <StatusBadge tone={row.type === "numerical" ? "info" : "success"}>
+                        {row.type}
+                      </StatusBadge>
+                    </td>
+                    {false && <td>{row.similarityScore.toFixed(3)}</td>}
+                    {false && (
+                      <td>
+                        <StatusBadge tone={statusTone(row.status)}>
+                          {statusLabel(row.status)}
+                        </StatusBadge>
+                      </td>
                     )}
-                  </td>
-                  <td>
-                    <StatusBadge tone={row.type === "numerical" ? "info" : "success"}>
-                      {row.type}
-                    </StatusBadge>
-                  </td>
-                  <td>{row.similarityScore.toFixed(3)}</td>
-                  <td>
-                    <StatusBadge tone={statusTone(row.status)}>
-                      {statusLabel(row.status)}
-                    </StatusBadge>
-                  </td>
-                  <td className="top-metric-cell">{metricLabel(row.topContributingMetric)}</td>
-                </tr>
-              ))}
+                    <td className="top-metric-cell">{metricLabel(row.topContributingMetric)}</td>
+                    <td>{weakestRaw !== undefined ? weakestRaw.toFixed(3) : "—"}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -328,37 +358,44 @@ export default function ResultsPage({
           }
         >
           {activeChartType === "histogram_kde"
-            ? <DistributionChart points={chartPoints} />
-            : <ComparisonChart   points={chartPoints} />
+            ? <DistributionChart points={chartPoints} xAxisLabel={selectedDetail?.xAxisLabel} yAxisLabel={selectedDetail?.yAxisLabel} />
+            : <ComparisonChart   points={chartPoints} yAxisLabel={selectedDetail?.yAxisLabel} />
           }
         </ChartCard>
 
         {/* Right: per-metric scores for selected variable */}
         <SectionCard
           title={`Metric scores — ${activeVariable ? getVariableDisplayName(activeVariable) : "—"}`}
-          subtitle="Raw statistic and normalised score for each metric applied to this variable."
+          subtitle="Raw statistic for each metric applied to this variable."
         >
           {selectedDetail ? (
             <table className="data-table">
               <thead>
                 <tr>
                   <th>Metric</th>
-                  <th>Raw value</th>
-                  <th>Score</th>
-                  <th>Status</th>
+                  <th>Value</th>
+                  {/* HIDDEN — supervisor meeting 2026-05-23: normalized score and
+                      status badge removed. Raw metric values are sufficient and
+                      more transparent. "No scores, no status." */}
+                  {false && <th>Score</th>}
+                  {false && <th>Status</th>}
                 </tr>
               </thead>
               <tbody>
-                {selectedDetail.metrics.map((m) => (
+                {/* correlation_difference hidden here — it is a cross-variable metric
+                    and belongs in the multivariate section, not per-variable detail */}
+                {selectedDetail.metrics.filter(m => m.name !== "correlation_difference").map((m) => (
                   <tr key={m.name}>
                     <td>{metricLabel(m.name)}</td>
                     <td>{m.value.toFixed(3)}</td>
-                    <td>{m.normalizedScore.toFixed(3)}</td>
-                    <td>
-                      <StatusBadge tone={scoreTone(m.normalizedScore)}>
-                        {m.normalizedScore >= 0.85 ? "Good" : m.normalizedScore >= 0.70 ? "Review" : "Poor"}
-                      </StatusBadge>
-                    </td>
+                    {false && <td>{m.normalizedScore.toFixed(3)}</td>}
+                    {false && (
+                      <td>
+                        <StatusBadge tone={scoreTone(m.normalizedScore)}>
+                          {m.normalizedScore >= 0.85 ? "Good" : m.normalizedScore >= 0.70 ? "Review" : "Poor"}
+                        </StatusBadge>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -382,15 +419,18 @@ export default function ResultsPage({
       {/* ── Section 4: Metric matrix heatmap ───────────────────────────────── */}
       <SectionCard
         title="Metric matrix"
-        subtitle="Each cell shows the normalised similarity score for one variable × metric pair. Grey cells mean the metric does not apply to that variable type."
+        subtitle="Each cell shows the metric value for one variable × metric pair. Grey cells mean the metric does not apply to that variable type."
       >
         <MetricHeatmap matrix={metricMatrix} />
       </SectionCard>
 
       {/* ── Multivariate placeholders ──────────────────────────────────────── */}
 
-      {/* Numerical–Numerical — only shown when backend returns data */}
-      {mv?.topCorrelationPairs?.length ? (
+      {/* HIDDEN — supervisor meeting 2026-05-23: Top pairs table removed.
+          The three-panel heatmap (Real / Synthetic / Difference) already shows all
+          pairwise Pearson r values in full, making this table redundant.
+          "The heat map is enough actually." Backend still computes the data. */}
+      {false && (mv?.topCorrelationPairs?.length ? (
         <SectionCard
           title="Numerical–Numerical: Correlation Comparison"
           subtitle="Pearson r for variable pairs — top pairs by largest difference shown first."
@@ -426,13 +466,13 @@ export default function ResultsPage({
             </tbody>
           </table>
         </SectionCard>
-      ) : null}
+      ) : null)}
 
       {/* Correlation difference heatmap — shown when full matrices are available */}
       {mv?.realCorrelationMatrix && mv?.synCorrelationMatrix && (
         <SectionCard
-          title="Numerical–Numerical: Correlation Similarity Heatmap"
-          subtitle="Each cell = 1 − |real Pearson r − synthetic Pearson r|. 1 = identical, lower = more different (min −1). Hover for exact values."
+          title="Numerical–Numerical: Correlation Heatmap"
+          subtitle="Three panels: Real Pearson r, Synthetic Pearson r, and absolute difference |Δr|. Hover any cell for exact values."
         >
           <CorrelationHeatmap
             variables={Object.keys(mv.realCorrelationMatrix)}
@@ -443,8 +483,11 @@ export default function ResultsPage({
         </SectionCard>
       )}
 
-      {/* Categorical–Categorical — only shown when backend returns data */}
-      {mv?.topCramersVPairs?.length ? (
+      {/* HIDDEN — supervisor meeting 2026-05-23: Top pairs table removed.
+          The three-panel heatmap (Real / Synthetic / Difference) already shows all
+          pairwise Cramér's V values in full, making this table redundant.
+          "The heat map is enough actually." Backend still computes the data. */}
+      {false && (mv?.topCramersVPairs?.length ? (
         <SectionCard
           title="Categorical–Categorical: Cramér's V Comparison"
           subtitle="Association strength for categorical variable pairs — top pairs by largest difference shown first."
@@ -480,13 +523,13 @@ export default function ResultsPage({
             </tbody>
           </table>
         </SectionCard>
-      ) : null}
+      ) : null)}
 
       {/* Cramér's V difference heatmap — shown when matrices are available */}
       {mv?.realCramersVMatrix && mv?.synCramersVMatrix && (
         <SectionCard
-          title="Categorical–Categorical: Cramér's V Similarity Heatmap"
-          subtitle="Each cell = 1 − |real Cramér's V − synthetic Cramér's V|. 1 = identical, 0 = completely different. Hover for exact values."
+          title="Categorical–Categorical: Cramér's V Heatmap"
+          subtitle="Three panels: Real Cramér's V, Synthetic Cramér's V, and absolute difference |ΔV|. Hover any cell for exact values."
         >
           <CramersVHeatmap
             variables={Object.keys(mv.realCramersVMatrix)}
@@ -574,16 +617,19 @@ export default function ResultsPage({
       })()}
 
       {/* ── Section 6: Insights ────────────────────────────────────────────── */}
-      <SectionCard
-        title="Key insights"
-        subtitle="Auto-generated observations from this evaluation run."
-      >
-        <ul className="insight-list plain">
-          {insights.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
-      </SectionCard>
+      {/* Key insights section — hidden per supervisor instruction: no auto-generated suggestions shown in the report */}
+      {false && (
+        <SectionCard
+          title="Key insights"
+          subtitle="Auto-generated observations from this evaluation run."
+        >
+          <ul className="insight-list plain">
+            {insights.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </SectionCard>
+      )}
 
       {/* ── Page actions ──────────────────────────────────────────────────── */}
       <div className="page-actions">
