@@ -151,124 +151,130 @@ export default function CorrelationHeatmap({ variables, realMatrix, synMatrix, n
       )}
 
       {/* ── Panel 1: Real Pearson r ─────────────────────────────────────────── */}
-      {panelTitle("Real — Pearson Correlation")}
-      <div style={{ overflowX: "auto", display: "flex", justifyContent: "center" }}>
-        <table style={{ borderCollapse: "collapse", fontSize: 12 }}>
-          {headerRow}
-          <tbody>
-            {vars.map((rowVar) => (
-              <tr key={rowVar}>
-                <td title={rowVar} style={rowLabelStyle}>{shortName(rowVar)}</td>
-                {vars.map((colVar) => {
-                  const r    = lookup(realMatrix, rowVar, colVar);
-                  const synR = lookup(synMatrix,  rowVar, colVar);
-                  if (r === null) return <td key={colVar} style={naCell}>N/A</td>;
-                  const diff = synR !== null ? Math.abs(r - synR) : null;
-                  return (
-                    <td
-                      key={colVar}
-                      style={{ ...cellBase, background: pearsonColor(r), color: Math.abs(r) > 0.5 ? "#fff" : "#374151" }}
-                      onMouseEnter={(e) => setTooltip({
-                        text: [
-                          `${rowVar} × ${colVar}`,
-                          `Real r:      ${r.toFixed(3)}`,
-                          `Synthetic r: ${synR !== null ? synR.toFixed(3) : "N/A"}`,
-                          diff !== null ? `|Δr|:        ${diff.toFixed(3)}` : "",
-                        ].filter(Boolean).join("\n"),
-                        x: e.clientX, y: e.clientY,
-                      })}
-                      onMouseLeave={() => setTooltip(null)}
-                    >
-                      {r.toFixed(2)}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="heatmap-panel-block">
+        {panelTitle("Real — Pearson Correlation")}
+        <div className="heatmap-table-scroll" style={{ overflowX: "auto", display: "flex", justifyContent: "center" }}>
+          <table style={{ borderCollapse: "collapse", fontSize: 12 }}>
+            {headerRow}
+            <tbody>
+              {vars.map((rowVar) => (
+                <tr key={rowVar}>
+                  <td title={rowVar} style={rowLabelStyle}>{shortName(rowVar)}</td>
+                  {vars.map((colVar) => {
+                    const r    = lookup(realMatrix, rowVar, colVar);
+                    const synR = lookup(synMatrix,  rowVar, colVar);
+                    if (r === null) return <td key={colVar} style={naCell}>N/A</td>;
+                    const diff = synR !== null ? Math.abs(r - synR) : null;
+                    return (
+                      <td
+                        key={colVar}
+                        style={{ ...cellBase, background: pearsonColor(r), color: Math.abs(r) > 0.5 ? "#fff" : "#374151" }}
+                        onMouseEnter={(e) => setTooltip({
+                          text: [
+                            `${rowVar} × ${colVar}`,
+                            `Real r:      ${r.toFixed(3)}`,
+                            `Synthetic r: ${synR !== null ? synR.toFixed(3) : "N/A"}`,
+                            diff !== null ? `|Δr|:        ${diff.toFixed(3)}` : "",
+                          ].filter(Boolean).join("\n"),
+                          x: e.clientX, y: e.clientY,
+                        })}
+                        onMouseLeave={() => setTooltip(null)}
+                      >
+                        {r.toFixed(2)}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <Legend type="pearson" />
       </div>
-      <Legend type="pearson" />
 
       {/* ── Panel 2: Synthetic Pearson r ────────────────────────────────────── */}
-      {panelTitle("Synthetic — Pearson Correlation")}
-      <div style={{ overflowX: "auto", display: "flex", justifyContent: "center" }}>
-        <table style={{ borderCollapse: "collapse", fontSize: 12 }}>
-          {headerRow}
-          <tbody>
-            {vars.map((rowVar) => (
-              <tr key={rowVar}>
-                <td title={rowVar} style={rowLabelStyle}>{shortName(rowVar)}</td>
-                {vars.map((colVar) => {
-                  const r     = lookup(synMatrix,  rowVar, colVar);
-                  const realR = lookup(realMatrix, rowVar, colVar);
-                  if (r === null) return <td key={colVar} style={naCell}>N/A</td>;
-                  const diff = realR !== null ? Math.abs(realR - r) : null;
-                  return (
-                    <td
-                      key={colVar}
-                      style={{ ...cellBase, background: pearsonColor(r), color: Math.abs(r) > 0.5 ? "#fff" : "#374151" }}
-                      onMouseEnter={(e) => setTooltip({
-                        text: [
-                          `${rowVar} × ${colVar}`,
-                          `Real r:      ${realR !== null ? realR.toFixed(3) : "N/A"}`,
-                          `Synthetic r: ${r.toFixed(3)}`,
-                          diff !== null ? `|Δr|:        ${diff.toFixed(3)}` : "",
-                        ].filter(Boolean).join("\n"),
-                        x: e.clientX, y: e.clientY,
-                      })}
-                      onMouseLeave={() => setTooltip(null)}
-                    >
-                      {r.toFixed(2)}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="heatmap-panel-block">
+        {panelTitle("Synthetic — Pearson Correlation")}
+        <div className="heatmap-table-scroll" style={{ overflowX: "auto", display: "flex", justifyContent: "center" }}>
+          <table style={{ borderCollapse: "collapse", fontSize: 12 }}>
+            {headerRow}
+            <tbody>
+              {vars.map((rowVar) => (
+                <tr key={rowVar}>
+                  <td title={rowVar} style={rowLabelStyle}>{shortName(rowVar)}</td>
+                  {vars.map((colVar) => {
+                    const r     = lookup(synMatrix,  rowVar, colVar);
+                    const realR = lookup(realMatrix, rowVar, colVar);
+                    if (r === null) return <td key={colVar} style={naCell}>N/A</td>;
+                    const diff = realR !== null ? Math.abs(realR - r) : null;
+                    return (
+                      <td
+                        key={colVar}
+                        style={{ ...cellBase, background: pearsonColor(r), color: Math.abs(r) > 0.5 ? "#fff" : "#374151" }}
+                        onMouseEnter={(e) => setTooltip({
+                          text: [
+                            `${rowVar} × ${colVar}`,
+                            `Real r:      ${realR !== null ? realR.toFixed(3) : "N/A"}`,
+                            `Synthetic r: ${r.toFixed(3)}`,
+                            diff !== null ? `|Δr|:        ${diff.toFixed(3)}` : "",
+                          ].filter(Boolean).join("\n"),
+                          x: e.clientX, y: e.clientY,
+                        })}
+                        onMouseLeave={() => setTooltip(null)}
+                      >
+                        {r.toFixed(2)}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <Legend type="pearson" />
       </div>
-      <Legend type="pearson" />
 
       {/* ── Panel 3: Absolute difference ────────────────────────────────────── */}
-      {panelTitle("Difference — |Real r − Synthetic r|")}
-      <div style={{ overflowX: "auto", display: "flex", justifyContent: "center" }}>
-        <table style={{ borderCollapse: "collapse", fontSize: 12 }}>
-          {headerRow}
-          <tbody>
-            {vars.map((rowVar) => (
-              <tr key={rowVar}>
-                <td title={rowVar} style={rowLabelStyle}>{shortName(rowVar)}</td>
-                {vars.map((colVar) => {
-                  const realR = lookup(realMatrix, rowVar, colVar);
-                  const synR  = lookup(synMatrix,  rowVar, colVar);
-                  if (realR === null || synR === null) return <td key={colVar} style={naCell}>N/A</td>;
-                  const diff = Math.abs(realR - synR);
-                  return (
-                    <td
-                      key={colVar}
-                      style={{ ...cellBase, background: diffColor(diff), color: diff > 0.5 ? "#fff" : "#374151", fontWeight: diff > 0.2 ? 600 : 400 }}
-                      onMouseEnter={(e) => setTooltip({
-                        text: [
-                          `${rowVar} × ${colVar}`,
-                          `Real r:      ${realR.toFixed(3)}`,
-                          `Synthetic r: ${synR.toFixed(3)}`,
-                          `|Δr|:        ${diff.toFixed(3)}`,
-                        ].join("\n"),
-                        x: e.clientX, y: e.clientY,
-                      })}
-                      onMouseLeave={() => setTooltip(null)}
-                    >
-                      {diff.toFixed(2)}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="heatmap-panel-block">
+        {panelTitle("Difference — |Real r − Synthetic r|")}
+        <div className="heatmap-table-scroll" style={{ overflowX: "auto", display: "flex", justifyContent: "center" }}>
+          <table style={{ borderCollapse: "collapse", fontSize: 12 }}>
+            {headerRow}
+            <tbody>
+              {vars.map((rowVar) => (
+                <tr key={rowVar}>
+                  <td title={rowVar} style={rowLabelStyle}>{shortName(rowVar)}</td>
+                  {vars.map((colVar) => {
+                    const realR = lookup(realMatrix, rowVar, colVar);
+                    const synR  = lookup(synMatrix,  rowVar, colVar);
+                    if (realR === null || synR === null) return <td key={colVar} style={naCell}>N/A</td>;
+                    const diff = Math.abs(realR - synR);
+                    return (
+                      <td
+                        key={colVar}
+                        style={{ ...cellBase, background: diffColor(diff), color: diff > 0.5 ? "#fff" : "#374151", fontWeight: diff > 0.2 ? 600 : 400 }}
+                        onMouseEnter={(e) => setTooltip({
+                          text: [
+                            `${rowVar} × ${colVar}`,
+                            `Real r:      ${realR.toFixed(3)}`,
+                            `Synthetic r: ${synR.toFixed(3)}`,
+                            `|Δr|:        ${diff.toFixed(3)}`,
+                          ].join("\n"),
+                          x: e.clientX, y: e.clientY,
+                        })}
+                        onMouseLeave={() => setTooltip(null)}
+                      >
+                        {diff.toFixed(2)}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <Legend type="diff" />
       </div>
-      <Legend type="diff" />
 
       {/* Floating tooltip */}
       {tooltip && (

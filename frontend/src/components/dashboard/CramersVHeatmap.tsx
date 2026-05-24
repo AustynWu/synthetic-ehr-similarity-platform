@@ -134,124 +134,130 @@ export default function CramersVHeatmap({ variables, realMatrix, synMatrix, note
       )}
 
       {/* ── Panel 1: Real Cramér's V ─────────────────────────────────────────── */}
-      {panelTitle("Real — Cramér's V")}
-      <div style={{ overflowX: "auto", display: "flex", justifyContent: "center" }}>
-        <table style={{ borderCollapse: "collapse", fontSize: 12 }}>
-          {headerRow}
-          <tbody>
-            {variables.map((rowVar) => (
-              <tr key={rowVar}>
-                <td title={rowVar} style={rowLabelStyle}>{shortName(rowVar)}</td>
-                {variables.map((colVar) => {
-                  const v    = lookup(realMatrix, rowVar, colVar);
-                  const synV = lookup(synMatrix,  rowVar, colVar);
-                  if (v === null) return <td key={colVar} style={naCell}>N/A</td>;
-                  const diff = synV !== null ? Math.abs(v - synV) : null;
-                  return (
-                    <td
-                      key={colVar}
-                      style={{ ...cellBase, background: cramersColor(v), color: v > 0.5 ? "#fff" : "#374151" }}
-                      onMouseEnter={(e) => setTooltip({
-                        text: [
-                          `${rowVar} × ${colVar}`,
-                          `Real V:      ${v.toFixed(3)}`,
-                          `Synthetic V: ${synV !== null ? synV.toFixed(3) : "N/A"}`,
-                          diff !== null ? `|ΔV|:        ${diff.toFixed(3)}` : "",
-                        ].filter(Boolean).join("\n"),
-                        x: e.clientX, y: e.clientY,
-                      })}
-                      onMouseLeave={() => setTooltip(null)}
-                    >
-                      {v.toFixed(2)}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="heatmap-panel-block">
+        {panelTitle("Real — Cramér's V")}
+        <div className="heatmap-table-scroll" style={{ overflowX: "auto", display: "flex", justifyContent: "center" }}>
+          <table style={{ borderCollapse: "collapse", fontSize: 12 }}>
+            {headerRow}
+            <tbody>
+              {variables.map((rowVar) => (
+                <tr key={rowVar}>
+                  <td title={rowVar} style={rowLabelStyle}>{shortName(rowVar)}</td>
+                  {variables.map((colVar) => {
+                    const v    = lookup(realMatrix, rowVar, colVar);
+                    const synV = lookup(synMatrix,  rowVar, colVar);
+                    if (v === null) return <td key={colVar} style={naCell}>N/A</td>;
+                    const diff = synV !== null ? Math.abs(v - synV) : null;
+                    return (
+                      <td
+                        key={colVar}
+                        style={{ ...cellBase, background: cramersColor(v), color: v > 0.5 ? "#fff" : "#374151" }}
+                        onMouseEnter={(e) => setTooltip({
+                          text: [
+                            `${rowVar} × ${colVar}`,
+                            `Real V:      ${v.toFixed(3)}`,
+                            `Synthetic V: ${synV !== null ? synV.toFixed(3) : "N/A"}`,
+                            diff !== null ? `|ΔV|:        ${diff.toFixed(3)}` : "",
+                          ].filter(Boolean).join("\n"),
+                          x: e.clientX, y: e.clientY,
+                        })}
+                        onMouseLeave={() => setTooltip(null)}
+                      >
+                        {v.toFixed(2)}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <Legend type="cramers" />
       </div>
-      <Legend type="cramers" />
 
       {/* ── Panel 2: Synthetic Cramér's V ───────────────────────────────────── */}
-      {panelTitle("Synthetic — Cramér's V")}
-      <div style={{ overflowX: "auto", display: "flex", justifyContent: "center" }}>
-        <table style={{ borderCollapse: "collapse", fontSize: 12 }}>
-          {headerRow}
-          <tbody>
-            {variables.map((rowVar) => (
-              <tr key={rowVar}>
-                <td title={rowVar} style={rowLabelStyle}>{shortName(rowVar)}</td>
-                {variables.map((colVar) => {
-                  const v     = lookup(synMatrix,  rowVar, colVar);
-                  const realV = lookup(realMatrix, rowVar, colVar);
-                  if (v === null) return <td key={colVar} style={naCell}>N/A</td>;
-                  const diff = realV !== null ? Math.abs(realV - v) : null;
-                  return (
-                    <td
-                      key={colVar}
-                      style={{ ...cellBase, background: cramersColor(v), color: v > 0.5 ? "#fff" : "#374151" }}
-                      onMouseEnter={(e) => setTooltip({
-                        text: [
-                          `${rowVar} × ${colVar}`,
-                          `Real V:      ${realV !== null ? realV.toFixed(3) : "N/A"}`,
-                          `Synthetic V: ${v.toFixed(3)}`,
-                          diff !== null ? `|ΔV|:        ${diff.toFixed(3)}` : "",
-                        ].filter(Boolean).join("\n"),
-                        x: e.clientX, y: e.clientY,
-                      })}
-                      onMouseLeave={() => setTooltip(null)}
-                    >
-                      {v.toFixed(2)}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="heatmap-panel-block">
+        {panelTitle("Synthetic — Cramér's V")}
+        <div className="heatmap-table-scroll" style={{ overflowX: "auto", display: "flex", justifyContent: "center" }}>
+          <table style={{ borderCollapse: "collapse", fontSize: 12 }}>
+            {headerRow}
+            <tbody>
+              {variables.map((rowVar) => (
+                <tr key={rowVar}>
+                  <td title={rowVar} style={rowLabelStyle}>{shortName(rowVar)}</td>
+                  {variables.map((colVar) => {
+                    const v     = lookup(synMatrix,  rowVar, colVar);
+                    const realV = lookup(realMatrix, rowVar, colVar);
+                    if (v === null) return <td key={colVar} style={naCell}>N/A</td>;
+                    const diff = realV !== null ? Math.abs(realV - v) : null;
+                    return (
+                      <td
+                        key={colVar}
+                        style={{ ...cellBase, background: cramersColor(v), color: v > 0.5 ? "#fff" : "#374151" }}
+                        onMouseEnter={(e) => setTooltip({
+                          text: [
+                            `${rowVar} × ${colVar}`,
+                            `Real V:      ${realV !== null ? realV.toFixed(3) : "N/A"}`,
+                            `Synthetic V: ${v.toFixed(3)}`,
+                            diff !== null ? `|ΔV|:        ${diff.toFixed(3)}` : "",
+                          ].filter(Boolean).join("\n"),
+                          x: e.clientX, y: e.clientY,
+                        })}
+                        onMouseLeave={() => setTooltip(null)}
+                      >
+                        {v.toFixed(2)}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <Legend type="cramers" />
       </div>
-      <Legend type="cramers" />
 
       {/* ── Panel 3: Absolute difference ────────────────────────────────────── */}
-      {panelTitle("Difference — |Real V − Synthetic V|")}
-      <div style={{ overflowX: "auto", display: "flex", justifyContent: "center" }}>
-        <table style={{ borderCollapse: "collapse", fontSize: 12 }}>
-          {headerRow}
-          <tbody>
-            {variables.map((rowVar) => (
-              <tr key={rowVar}>
-                <td title={rowVar} style={rowLabelStyle}>{shortName(rowVar)}</td>
-                {variables.map((colVar) => {
-                  const realV = lookup(realMatrix, rowVar, colVar);
-                  const synV  = lookup(synMatrix,  rowVar, colVar);
-                  if (realV === null || synV === null) return <td key={colVar} style={naCell}>N/A</td>;
-                  const diff = Math.abs(realV - synV);
-                  return (
-                    <td
-                      key={colVar}
-                      style={{ ...cellBase, background: diffColor(diff), color: diff > 0.5 ? "#fff" : "#374151", fontWeight: diff > 0.2 ? 600 : 400 }}
-                      onMouseEnter={(e) => setTooltip({
-                        text: [
-                          `${rowVar} × ${colVar}`,
-                          `Real V:      ${realV.toFixed(3)}`,
-                          `Synthetic V: ${synV.toFixed(3)}`,
-                          `|ΔV|:        ${diff.toFixed(3)}`,
-                        ].join("\n"),
-                        x: e.clientX, y: e.clientY,
-                      })}
-                      onMouseLeave={() => setTooltip(null)}
-                    >
-                      {diff.toFixed(2)}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="heatmap-panel-block">
+        {panelTitle("Difference — |Real V − Synthetic V|")}
+        <div className="heatmap-table-scroll" style={{ overflowX: "auto", display: "flex", justifyContent: "center" }}>
+          <table style={{ borderCollapse: "collapse", fontSize: 12 }}>
+            {headerRow}
+            <tbody>
+              {variables.map((rowVar) => (
+                <tr key={rowVar}>
+                  <td title={rowVar} style={rowLabelStyle}>{shortName(rowVar)}</td>
+                  {variables.map((colVar) => {
+                    const realV = lookup(realMatrix, rowVar, colVar);
+                    const synV  = lookup(synMatrix,  rowVar, colVar);
+                    if (realV === null || synV === null) return <td key={colVar} style={naCell}>N/A</td>;
+                    const diff = Math.abs(realV - synV);
+                    return (
+                      <td
+                        key={colVar}
+                        style={{ ...cellBase, background: diffColor(diff), color: diff > 0.5 ? "#fff" : "#374151", fontWeight: diff > 0.2 ? 600 : 400 }}
+                        onMouseEnter={(e) => setTooltip({
+                          text: [
+                            `${rowVar} × ${colVar}`,
+                            `Real V:      ${realV.toFixed(3)}`,
+                            `Synthetic V: ${synV.toFixed(3)}`,
+                            `|ΔV|:        ${diff.toFixed(3)}`,
+                          ].join("\n"),
+                          x: e.clientX, y: e.clientY,
+                        })}
+                        onMouseLeave={() => setTooltip(null)}
+                      >
+                        {diff.toFixed(2)}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <Legend type="diff" />
       </div>
-      <Legend type="diff" />
 
       {/* Floating tooltip */}
       {tooltip && (

@@ -381,6 +381,7 @@ export default function RunDetailPage({
           <SectionCard
             title="Correlation Heatmap"
             subtitle="Three panels: Real Pearson r, Synthetic Pearson r, and absolute difference |Δr|. Hover any cell for exact values."
+            className="heatmap-section-card"
           >
             <CorrelationHeatmap
               variables={Object.keys(mv.realCorrelationMatrix)}
@@ -441,6 +442,7 @@ export default function RunDetailPage({
           <SectionCard
             title="Cramér's V Heatmap"
             subtitle="Three panels: Real Cramér's V, Synthetic Cramér's V, and absolute difference |ΔV|. Hover any cell for exact values."
+            className="heatmap-section-card"
           >
             <CramersVHeatmap
               variables={Object.keys(mv.realCramersVMatrix)}

@@ -472,9 +472,39 @@ p {
     padding: 0 !important;
   }
 
-  /* keep individual section cards together — prevents card title ending up on one page and content on the next */
+  /* remove rounded corners in print — border-radius clips content at page breaks */
+  .section-card,
+  .page-section,
+  .detail-chart-card {
+    border-radius: 0 !important;
+  }
+
+  /* keep individual section cards together */
   .section-card {
     break-inside: avoid;
+  }
+
+  /* heatmap section cards hold 3 tall panels — allow page breaks between panels */
+  .section-card.heatmap-section-card {
+    break-inside: auto;
+  }
+
+  /* prevent card header from being left alone at the bottom of a page */
+  .section-card.heatmap-section-card .card-header {
+    break-after: avoid;
+  }
+
+  /* each heatmap panel (title + table + legend) stays together on one page */
+  .heatmap-panel-block {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* unlock overflow and switch to block so table cells are not clipped in print;
+     display:block !important overrides the inline display:flex on these divs */
+  .heatmap-table-scroll {
+    overflow: visible !important;
+    display: block !important;
   }
 
   /* keep chart cards together across page breaks */
